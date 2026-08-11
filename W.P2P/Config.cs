@@ -1,27 +1,36 @@
 ﻿using System.Text.Json;
+using static W.P2P.Models;
 
 namespace W.P2P;
 
 public class Config
 {
-    private static readonly string _configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "config.json");
+    private static readonly string _configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "W.P2P", "config.json");
     public string Id  { get; set; } = "";
     public string Name { get; set; } = "";
-    public Dictionary<string, string> IdMap { get; set; } = new Dictionary<string, string>();
+
+    public List<Contact> IdMap { get; set; } = new List<Contact>();
     
     public void SaveIdInMap(string id, string name)
     {
-        IdMap.Add(name, id);
+        var contact = new Contact();
+        contact.Id = id;
+        contact.Name = name;
+        contact.Key = null;
+        IdMap.Add(contact);
     }
 
     public void PrintIdMap()
     {
         Console.WriteLine("----------------------------------");
-        foreach (var pair in IdMap)
+        foreach (var contact in IdMap)
         {
-            Console.WriteLine($"{pair.Key}: {pair.Value}");
+            Console.WriteLine($"ID: {contact.Id}");
+            Console.WriteLine($"Name: {contact.Name}");
+            Console.WriteLine($"Key: {contact.Key}");
+            
+            Console.WriteLine("----------------------------------");
         }
-        Console.WriteLine("----------------------------------");
     }
 
     public void BuildDefault()
@@ -29,7 +38,7 @@ public class Config
         Id = Guid.NewGuid().ToString();
         Name = Environment.MachineName;
         
-        SaveIdInMap(Id, Name);
+        SaveIdInMap(Id, "MyId");
     }
     
     public void LoadConfig()

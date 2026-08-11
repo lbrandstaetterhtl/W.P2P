@@ -12,16 +12,19 @@ public class Models
         public List<byte> Position { get; set; }
         public List<byte> Data { get; set; }
         public List<byte> Id { get; set; }
+        
+        public FrameType Type { get; set; }
 
-        public void BuildFrame(string targetId, string sourceId, string data, int position, string id)
+        public void BuildFrame(string targetId, string sourceId, byte[] data, int position, string id, FrameType type)
         {
             Id = new List<byte>(Encoding.ASCII.GetBytes(id));
             
             var targetIdBytes = new List<byte>(Encoding.ASCII.GetBytes(targetId));
             var sourceIdBytes = new List<byte>(Encoding.ASCII.GetBytes(sourceId));
-            var dataBytes = new List<byte>(Encoding.ASCII.GetBytes(data));
+            var dataBytes = data.ToList();
             var positionBytes = new List<byte>(BitConverter.GetBytes(position));
             
+            Type = type;
             TargetId = targetIdBytes;
             SourceId = sourceIdBytes;
             Position = positionBytes;
@@ -56,8 +59,9 @@ public class Models
         
         public List<byte> Serialize()
         {
-            var frame = new List<byte>() {0xAA};
+            var frame = new List<byte> {0xAA};
         
+            frame.AddRange((byte)Type);
             frame.AddRange(Id);
             frame.AddRange(TargetId);
             frame.AddRange(SourceId);
@@ -77,6 +81,8 @@ public class Models
 
             var frame = new ByteFrame();
             int pos = 1;
+            
+            frame.Type = (FrameType)data[pos++];
             
             frame.Id = data.GetRange(pos, 36).ToList();
             pos += 36;
@@ -117,11 +123,12 @@ public class Models
                 SourceId = Encoding.UTF8.GetString(SourceId.ToArray()),
                 Data = Encoding.UTF8.GetString(Data.ToArray()),
                 Id = Encoding.UTF8.GetString(Id.ToArray()),
-                Position = BitConverter.ToInt32(Position.ToArray(), 0)
+                Position = BitConverter.ToInt32(Position.ToArray(), 0),
+                Type = Type
             };
         }
     }
-    
+
     public class StringFrame
     {
         public string TargetId { get; set; }
@@ -129,5 +136,20 @@ public class Models
         public string Data { get; set; }
         public string Id { get; set; }
         public int Position { get; set; }
+        public FrameType Type { get; set; }
+    }
+    
+    public enum FrameType : byte
+    {
+        Data = 0x01,
+        HandshakeInit = 0x02,
+        HandshakeReply = 0x03
+    }
+
+    public class Contact
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public byte[] Key  { get; set; }
     }
 }
