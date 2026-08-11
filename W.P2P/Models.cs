@@ -9,27 +9,9 @@ public class Models
         public List<byte> TargetId { get; set; }
         public List<byte> SourceId { get; set; }
         public byte Checksum { get; set; }
-        public List<byte> Position { get; set; }
         public List<byte> Data { get; set; }
         public List<byte> Id { get; set; }
         public FrameType Type { get; set; }
-
-        public void BuildFrame(string targetId, string sourceId, byte[] data, int position, string id, FrameType type)
-        {
-            Id = new List<byte>(Encoding.ASCII.GetBytes(id));
-            
-            var targetIdBytes = new List<byte>(Encoding.ASCII.GetBytes(targetId));
-            var sourceIdBytes = new List<byte>(Encoding.ASCII.GetBytes(sourceId));
-            var dataBytes = data.ToList();
-            var positionBytes = new List<byte>(BitConverter.GetBytes(position));
-            
-            Type = type;
-            TargetId = targetIdBytes;
-            SourceId = sourceIdBytes;
-            Position = positionBytes;
-            Data = dataBytes;
-            CalculateChecksum();
-        }
 
         public void CalculateChecksum()
         {
@@ -38,7 +20,6 @@ public class Models
     
             allData.AddRange(TargetId);
             allData.AddRange(SourceId);
-            allData.AddRange(Position);
             allData.AddRange(Data);
             allData.AddRange(Id);
     
@@ -64,7 +45,6 @@ public class Models
             frame.AddRange(Id);
             frame.AddRange(TargetId);
             frame.AddRange(SourceId);
-            frame.AddRange(Position);
             
             frame.Add((byte)Data.Count);
             frame.AddRange(Data);
@@ -91,9 +71,6 @@ public class Models
 
             frame.SourceId = data.GetRange(pos, 36).ToList();
             pos += 36;
-
-            frame.Position = data.GetRange(pos, 4).ToList();
-            pos += 4;
 
             byte dataLen = data[pos++];
         
@@ -122,7 +99,6 @@ public class Models
                 SourceId = Encoding.UTF8.GetString(SourceId.ToArray()),
                 Data = Encoding.UTF8.GetString(Data.ToArray()),
                 Id = Encoding.UTF8.GetString(Id.ToArray()),
-                Position = BitConverter.ToInt32(Position.ToArray(), 0),
                 Type = Type
             };
         }
@@ -134,7 +110,6 @@ public class Models
         public string SourceId { get; set; }
         public string Data { get; set; }
         public string Id { get; set; }
-        public int Position { get; set; }
         public FrameType Type { get; set; }
     }
     
@@ -142,7 +117,9 @@ public class Models
     {
         Data = 0x01,
         HandshakeInit = 0x02,
-        HandshakeReply = 0x03
+        HandshakeReply = 0x03,
+        OkReply = 0x04,
+        ErrorReply = 0x05,
     }
 
     public class Contact
