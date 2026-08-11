@@ -80,6 +80,7 @@ public class P2PClient(Config config)
 
         Console.WriteLine($"Handshake finished with {contact.Name}:{contact.Id}.");
         
+        ecdh.Dispose();
         return reply;
     }
     
