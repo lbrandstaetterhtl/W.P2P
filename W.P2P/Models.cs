@@ -12,7 +12,6 @@ public class Models
         public List<byte> Position { get; set; }
         public List<byte> Data { get; set; }
         public List<byte> Id { get; set; }
-        
         public FrameType Type { get; set; }
 
         public void BuildFrame(string targetId, string sourceId, byte[] data, int position, string id, FrameType type)
