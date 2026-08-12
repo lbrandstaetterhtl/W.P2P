@@ -1,5 +1,9 @@
-﻿using System.Text.Json;
-using static W.P2P.Models;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Text.Json;
+using W.P2P.Models;
 
 namespace W.P2P;
 
@@ -10,28 +14,15 @@ public class Config
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
 
-    public List<Contact> IdMap { get; set; } = new List<Contact>();
+    public ObservableCollection<DataModels.Contact> IdMap { get; set; } = new ();
 
     public void SaveIdInMap(string id, string name)
     {
-        var contact = new Contact();
+        var contact = new DataModels.Contact();
         contact.Id = id;
         contact.Name = name;
         contact.Key = null;
         IdMap.Add(contact);
-    }
-
-    public void PrintIdMap()
-    {
-        Console.WriteLine("----------------------------------");
-        foreach (var contact in IdMap)
-        {
-            Console.WriteLine($"ID: {contact.Id}");
-            Console.WriteLine($"Name: {contact.Name}");
-            Console.WriteLine($"Key: {contact.Key}");
-
-            Console.WriteLine("----------------------------------");
-        }
     }
 
     public void BuildDefault()
@@ -53,7 +44,10 @@ public class Config
 
             Id = config!.Id;
             Name = config.Name;
-            IdMap = config.IdMap;
+            
+            IdMap.Clear();
+            foreach (var contact in config.IdMap)
+                IdMap.Add(contact);
         }
         else
         {
@@ -72,31 +66,5 @@ public class Config
         config.Name = Name;
         var json = JsonSerializer.Serialize(config);
         File.WriteAllText(ConfigFilePath, json);
-    }
-
-    public void PrintConfig()
-    {
-        Console.WriteLine();
-        Console.WriteLine($"Id: {Id}");
-        Console.WriteLine($"Name: {Name}");
-        Console.WriteLine();
-        Console.WriteLine("----------------------------------");
-        Console.WriteLine();
-        Console.WriteLine($"IdMap: {IdMap.Count}");
-        PrintIdMap();
-    }
-
-    public void PrintContact(string id)
-    {
-        var contact = IdMap.FirstOrDefault(x => x.Id == id);
-
-        if (contact != null)
-        {
-            Console.WriteLine("----------------------------------");
-            Console.WriteLine($"Id: {contact.Id}");
-            Console.WriteLine($"Name: {contact.Name}");
-            Console.WriteLine($"Key: {contact.Key}");
-            Console.WriteLine("----------------------------------");
-        }
     }
 }

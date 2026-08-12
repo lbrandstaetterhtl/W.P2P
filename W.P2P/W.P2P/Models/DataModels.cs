@@ -1,0 +1,36 @@
+﻿namespace W.P2P.Models;
+
+public class DataModels
+{
+    public class StringFrame
+    {
+        public string TargetId { get; set; }
+        public string SourceId { get; set; }
+        public string Data { get; set; }
+        public string Id { get; set; }
+        public FrameType Type { get; set; }
+    }
+    
+    public enum FrameType : byte
+    {
+        Data = 0x01,
+        HandshakeInit = 0x02,
+        HandshakeReply = 0x03,
+        OkReply = 0x04,
+        ErrorReply = 0x05,
+    }
+
+    public class Contact
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public byte[] Key  { get; set; }
+    }
+    
+    public class Connection
+    {
+        public string TargetId { get; set; }
+        public string SourceId { get; set; }
+        public string ConnectionId { get; set; }
+    }
+}

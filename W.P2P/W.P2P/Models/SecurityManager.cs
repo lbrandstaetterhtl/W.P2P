@@ -1,6 +1,6 @@
 ﻿using System.Security.Cryptography;
 
-namespace W.P2P;
+namespace W.P2P.Models;
 
 public class SecurityManager
 {

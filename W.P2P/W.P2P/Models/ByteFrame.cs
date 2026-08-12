@@ -1,17 +1,18 @@
-﻿using System.Text;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 
-namespace W.P2P;
+namespace W.P2P.Models;
 
-public class Models
+public class ByteFrame
 {
-    public class ByteFrame
-    {
         public List<byte> TargetId { get; set; }
         public List<byte> SourceId { get; set; }
         public byte Checksum { get; set; }
         public List<byte> Data { get; set; }
         public List<byte> Id { get; set; }
-        public FrameType Type { get; set; }
+        public DataModels.FrameType Type { get; set; }
 
         public void CalculateChecksum()
         {
@@ -56,12 +57,12 @@ public class Models
         public static ByteFrame Deserialize(List<byte> data)
         {
             if (data[0] != 0xAA)
-                throw new Exception("Ungültiges Frame!");
+                throw new BrokenFrame("Error: Frame is not valid!");
 
             var frame = new ByteFrame();
             int pos = 1;
             
-            frame.Type = (FrameType)data[pos++];
+            frame.Type = (DataModels.FrameType)data[pos++];
             
             frame.Id = data.GetRange(pos, 36).ToList();
             pos += 36;
@@ -75,7 +76,7 @@ public class Models
             byte dataLen = data[pos++];
         
             if (pos + dataLen > data.Count)
-                throw new Exception($"Data got lost! Only {data.Count} bytes arrived of {dataLen}");
+                throw new BrokenFrame($"Data got lost! Only {data.Count} bytes arrived of {dataLen}");
         
             frame.Data = data.GetRange(pos, dataLen).ToList();
             pos += dataLen;
@@ -86,14 +87,14 @@ public class Models
 
             frame.CalculateChecksum();
             if (frame.Checksum != oldChecksum)
-                throw new Exception("Checksum-Failed!");
+                throw new BrokenFrame("Checksum-Failed!");
 
             return frame;
         }
 
-        public StringFrame ToStringFrame()
+        public DataModels.StringFrame ToStringFrame()
         {
-            return new StringFrame
+            return new DataModels.StringFrame
             {
                 TargetId = Encoding.UTF8.GetString(TargetId.ToArray()),
                 SourceId = Encoding.UTF8.GetString(SourceId.ToArray()),
@@ -102,37 +103,4 @@ public class Models
                 Type = Type
             };
         }
-    }
-
-    public class StringFrame
-    {
-        public string TargetId { get; set; }
-        public string SourceId { get; set; }
-        public string Data { get; set; }
-        public string Id { get; set; }
-        public FrameType Type { get; set; }
-    }
-    
-    public enum FrameType : byte
-    {
-        Data = 0x01,
-        HandshakeInit = 0x02,
-        HandshakeReply = 0x03,
-        OkReply = 0x04,
-        ErrorReply = 0x05,
-    }
-
-    public class Contact
-    {
-        public string Id { get; set; }
-        public string Name { get; set; }
-        public byte[] Key  { get; set; }
-    }
-    
-    public class Connection
-    {
-        public string TargetId { get; set; }
-        public string SourceId { get; set; }
-        public string ConnectionId { get; set; }
-    }
 }
