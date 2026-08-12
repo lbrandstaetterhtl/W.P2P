@@ -12,9 +12,9 @@ namespace W.P2P.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private static P2PClient _client = new();
+    private static readonly P2PClient Client = new();
     
-    public ObservableCollection<string> TerminalOutput => AppData.TerminalOutput;
+    private ObservableCollection<string> TerminalOutput => AppData.TerminalOutput;
     
     public ObservableCollection<Contact> Contacts => AppData.Config.IdMap;
     
@@ -28,19 +28,19 @@ public partial class MainViewModel : ObservableObject
 
     public void Connect(Contact contact)
     {
-        var result = _client.Connect(contact, AppData.Config.Id);
+        var result = Client.Connect(contact, AppData.Config.Id);
         
         if (!result)
         {
             AppData.TerminalOutput.Add("Failed to connect to the selected contact.");
-            _client.Connection = new Connection();
+            Client.Connection = new Connection();
         }
     }
     
     [RelayCommand]
     private void Disconnect()
     {
-        var result = _client.Disconnect();
+        var result = Client.Disconnect();
 
         if (!result)
         {
