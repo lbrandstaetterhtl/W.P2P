@@ -12,8 +12,7 @@ class Program
     //config object
     private static readonly Config Config = new();
     
-    //
-    public static readonly List<string> ValidCommands = ["saveid", "idmap", "send", "exit", "handshake", "config"];
+    public static readonly List<string> ValidCommands = ["saveid", "idmap", "send", "exit", "config", "connect", "disconnect", "connection"];
     
     private static CommandProcessor _commandProcessor = new(Config);
     
@@ -24,6 +23,7 @@ class Program
         
         while (true)
         {
+            Console.Write(">");
             var input = Console.ReadLine();
 
             if (string.IsNullOrEmpty(input))
@@ -57,11 +57,19 @@ class Program
             }
             else if (command.Equals(ValidCommands[4]))
             {
-                _commandProcessor.HandleHandshakeCommand(parts);
+                _commandProcessor.HandleConfigCommand(parts);
             }
             else if (command.Equals(ValidCommands[5]))
             {
-                _commandProcessor.HandleConfigCommand(parts);
+                _commandProcessor.HandleConnectCommand(parts);
+            }
+            else if (command.Equals(ValidCommands[6]))
+            {
+                _commandProcessor.HandleDisconnectCommand();
+            }
+            else if (command.Equals(ValidCommands[7]))
+            {
+                _commandProcessor.HandleConnectionCommand();
             }
             else
             {

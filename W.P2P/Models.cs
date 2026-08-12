@@ -75,7 +75,7 @@ public class Models
             byte dataLen = data[pos++];
         
             if (pos + dataLen > data.Count)
-                throw new Exception($"Nicht genug Daten! Erwartet {dataLen} bytes, aber nur {data.Count - pos} vorhanden");
+                throw new Exception($"Data got lost! Only {data.Count} bytes arrived of {dataLen}");
         
             frame.Data = data.GetRange(pos, dataLen).ToList();
             pos += dataLen;
@@ -86,7 +86,7 @@ public class Models
 
             frame.CalculateChecksum();
             if (frame.Checksum != oldChecksum)
-                throw new Exception("Checksum-Fehler!");
+                throw new Exception("Checksum-Failed!");
 
             return frame;
         }
@@ -127,5 +127,12 @@ public class Models
         public string Id { get; set; }
         public string Name { get; set; }
         public byte[] Key  { get; set; }
+    }
+    
+    public class Connection
+    {
+        public string TargetId { get; set; }
+        public string SourceId { get; set; }
+        public string ConnectionId { get; set; }
     }
 }

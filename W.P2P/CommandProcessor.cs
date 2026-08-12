@@ -19,38 +19,27 @@ public class CommandProcessor(Config config)
             var key = contact.Key ?? throw new Exception($"No key found for {contact.Name}:{targetId}");
                     
             var dataBytes = Encoding.UTF8.GetBytes(data);
-                    
-            var frame = _client.BuildByteFrame(targetId: targetId, sourceId: config.Id, data: dataBytes, id: Guid.NewGuid().ToString(), type: Models.FrameType.Data);
-            _client.Send(frame);
+            
+            var sent = _client.SendMessage(targetId, config.Id, dataBytes, key);
+
+            if (sent == null)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Failed to send message to {targetId}.");
+                Console.ResetColor();
+            }
+            else
+            {
+                var stringFrame = new Models.StringFrame();
+                var reply = _client.GotMessage(sent, out stringFrame);
+                _client.SendFrame(reply);
+            }
         }
         else
         {
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"Not enough arguments for {ValidCommands[2]}");
             Console.ResetColor();
-        }
-    }
-
-    public void HandleHandshakeCommand(string[] parts)
-    {
-        if (parts.Length < 2)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Not enough arguments for {ValidCommands[4]}");
-            Console.ResetColor();
-        }
-                
-        var contact = config.IdMap.FirstOrDefault(x => x.Name == parts[1]) ?? throw new Exception($"No contact found for {parts[1]}");
-                
-        var sentFrame = _client.Handshake(contact);
-                
-        var reply = _client.GotHandshakeInitRequest(sentFrame);
-                
-        reply = _client.GotHandshakeReply(reply);
-        
-        if (reply.Type == Models.FrameType.ErrorReply)
-        {
-            _client.GotErrorReply(reply);
         }
     }
     
@@ -60,15 +49,6 @@ public class CommandProcessor(Config config)
         {
             var id = parts[1];
             var name = parts[2];
-
-            if (name.Equals("MyId"))
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("Can't use 'MyId' as a name, because it's a constant.");
-                Console.WriteLine();
-                Console.ResetColor();
-                return;
-            }
                     
             config.SaveIdInMap(id, name);
                     
@@ -89,7 +69,7 @@ public class CommandProcessor(Config config)
         if (parts.Length < 2)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Not enough arguments for {ValidCommands[5]}");
+            Console.WriteLine($"Not enough arguments for {ValidCommands[4]}");
             Console.ResetColor();
             return;
         }
@@ -136,8 +116,61 @@ public class CommandProcessor(Config config)
         else
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Not no valid options for {ValidCommands[5]}");
+            Console.WriteLine($"No valid options for {ValidCommands[4]}");
             Console.ResetColor();
         }
+    }
+
+    public void HandleConnectCommand(string[] parts)
+    {
+        if (parts.Length < 2)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Not enough arguments for {ValidCommands[5]}");
+            Console.ResetColor();
+            return;
+        }
+        
+        var name = parts[1];
+        
+        var contact = config.IdMap.FirstOrDefault(x => x.Name == name) ?? throw new Exception($"No contact found for {name}");
+                
+        var result = _client.Connect(contact);
+
+        if (!result)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Failed to connect to contact with id {contact.Id}.");
+            Console.ResetColor();
+            
+            _client.Connection = new Models.Connection();
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"Connected to contact with id {contact.Id}.");
+            Console.ResetColor();
+        }
+    }
+
+    public void HandleDisconnectCommand()
+    {
+        _client.Disconnect();
+    }
+
+    public void HandleConnectionCommand()
+    {
+        PrintConnection();
+    }
+
+    private void PrintConnection()
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        var targetId = _client.Connection.TargetId;
+        var sourceId = _client.Connection.SourceId;
+        var connectionId = _client.Connection.ConnectionId;
+        
+        Console.WriteLine($"TargetId: {targetId}, SourceId: {sourceId}, ConnectionId: {connectionId}");
+        Console.ResetColor();
     }
 }

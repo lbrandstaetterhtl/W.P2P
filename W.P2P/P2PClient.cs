@@ -9,6 +9,8 @@ public class P2PClient(Config config)
     //pending handshakes
     private static readonly Dictionary<string, ECDiffieHellman> Handshakes = new Dictionary<string, ECDiffieHellman>();
     
+    public Models.Connection Connection = new();
+    
     public Models.ByteFrame Handshake(Models.Contact contact)
     {
         var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
@@ -17,7 +19,8 @@ public class P2PClient(Config config)
         byte[] myPublicKey = ecdh.ExportSubjectPublicKeyInfo();
         
         var frame = BuildByteFrame(targetId: contact.Id, sourceId: config.Id, data: myPublicKey, id: Guid.NewGuid().ToString(), type: Models.FrameType.HandshakeInit);
-        Send(frame);
+        SendFrame(frame);
+        
         return frame;
     }
 
@@ -46,10 +49,9 @@ public class P2PClient(Config config)
         }
         catch (Exception e)
         {
-            byte[] errorMessage = System.Text.Encoding.UTF8.GetBytes(e.Message);
+            byte[] errorMessage = Encoding.UTF8.GetBytes(e.Message);
             
-            var reply = new Models.ByteFrame();
-            BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: frame.ToStringFrame().TargetId, data: errorMessage, id: Guid.NewGuid().ToString(), type: Models.FrameType.ErrorReply);
+            var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: frame.ToStringFrame().TargetId, data: errorMessage, id: Guid.NewGuid().ToString(), type: Models.FrameType.ErrorReply);
             return reply;
         }
     }
@@ -58,7 +60,7 @@ public class P2PClient(Config config)
     {
         var stringFrame = frame.ToStringFrame();
         var messageBytes = frame.Data.ToArray();
-        var message = System.Text.Encoding.UTF8.GetString(messageBytes);
+        var message = Encoding.UTF8.GetString(messageBytes);
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine($"Error from {stringFrame.SourceId}: {message}");
         Console.ResetColor();
@@ -66,28 +68,48 @@ public class P2PClient(Config config)
     
     public Models.ByteFrame GotHandshakeInitRequest(Models.ByteFrame frame)
     {
-        byte[] theirPublicKey = frame.Data.ToArray();
-        var stringFrame = frame.ToStringFrame();
+        try
+        {
+            byte[] theirPublicKey = frame.Data.ToArray();
+            var stringFrame = frame.ToStringFrame();
 
-        var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
+            var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
 
-        var contact = config.IdMap.FirstOrDefault(x => x.Id == stringFrame.SourceId) ?? throw new Exception($"No contact found for {stringFrame.SourceId}.");
-        contact.Key = SecurityManager.DeriveKey(ecdh, theirPublicKey);
+            var contact = config.IdMap.FirstOrDefault(x => x.Id == stringFrame.SourceId) ??
+                          throw new Exception($"No contact found for {stringFrame.SourceId}.");
+            contact.Key = SecurityManager.DeriveKey(ecdh, theirPublicKey);
 
-        byte[] myPublicKey = ecdh.ExportSubjectPublicKeyInfo();
-        var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId, data: myPublicKey, id: Guid.NewGuid().ToString(), type: Models.FrameType.HandshakeReply);
-        Send(reply);
+            byte[] myPublicKey = ecdh.ExportSubjectPublicKeyInfo();
+            
+            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId, data: myPublicKey, id: Guid.NewGuid().ToString(), type: Models.FrameType.HandshakeReply);
 
-        Console.WriteLine($"Handshake finished with {contact.Name}:{contact.Id}.");
-        
-        ecdh.Dispose();
+            Console.WriteLine($"Handshake finished with {contact.Name}:{contact.Id}.");
+
+            ecdh.Dispose();
+            return reply;
+        }
+        catch (Exception e)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Error: {e.Message}");
+            Console.WriteLine("Can't send reply!");
+            Console.ResetColor();
+            return null;
+        }
+    }
+
+    public Models.ByteFrame GotMessage(Models.ByteFrame frame, out Models.StringFrame stringFrame)
+    {
+        stringFrame = frame.ToStringFrame();
+
+        var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId, data: new byte[0], id: Connection.ConnectionId, type: Models.FrameType.OkReply);
+
         return reply;
     }
-    
-    public void Send(Models.ByteFrame frame)
+
+    public void SendFrame(Models.ByteFrame frame)
     {
         var serialized = frame.Serialize();
-                    
         Console.WriteLine(BitConverter.ToString(serialized.ToArray()));
         Console.WriteLine("------------------------------------------------------");
                     
@@ -99,6 +121,23 @@ public class P2PClient(Config config)
         Console.WriteLine(stringFrame.SourceId);
         Console.WriteLine(stringFrame.TargetId);
         Console.WriteLine(stringFrame.Data);
+        Console.WriteLine(stringFrame.Type);
+    }
+    
+    public Models.ByteFrame SendMessage(string targetId, string sourceId, byte[] data, byte[] key)
+    {
+        if (!targetId.Equals(Connection.TargetId))
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"No ceonnection established with {targetId}.");
+            Console.ResetColor();
+            return null;
+        }
+        
+        var frame = BuildByteFrame(targetId: targetId, sourceId: sourceId, data: data, id: Connection.ConnectionId, type: Models.FrameType.Data);
+        SendFrame(frame);
+        
+        return frame;
     }
     
     public Models.ByteFrame BuildByteFrame(string targetId, string sourceId, byte[] data, string id, Models.FrameType type)
@@ -116,5 +155,33 @@ public class P2PClient(Config config)
         frame.Data = dataBytes;
         frame.CalculateChecksum();
         return frame;
+    }
+
+    public bool Connect(Models.Contact contact)
+    {
+        var reply = Handshake(contact);
+        
+        reply = GotHandshakeInitRequest(reply);
+        
+        reply = GotHandshakeReply(reply);
+
+        if (reply.Type != Models.FrameType.OkReply)
+        {
+            GotErrorReply(reply);
+            return false;
+        }
+        
+        Connection = new Models.Connection();
+        Connection.TargetId = contact.Id;
+        Connection.SourceId = config.Id;
+        Connection.ConnectionId = Guid.NewGuid().ToString();
+        return true;
+    }
+
+    public void Disconnect()
+    {
+        var contact = config.IdMap.FirstOrDefault(x => x.Id == Connection.TargetId) ?? throw new Exception($"No contact found for {Connection.TargetId}.");
+        Console.WriteLine($"Disconnected with {contact.Name}:{contact.Id}.");
+        Connection = new Models.Connection();
     }
 }
