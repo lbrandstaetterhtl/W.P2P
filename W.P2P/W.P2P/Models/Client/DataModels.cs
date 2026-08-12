@@ -18,6 +18,7 @@ public class DataModels
         HandshakeReply = 0x03,
         OkReply = 0x04,
         ErrorReply = 0x05,
+        Disconnect = 0x06,
     }
 
     public class Contact

@@ -22,10 +22,20 @@
                         </DataTemplate>
                     </MenuItem.ItemTemplate>
                 </MenuItem>
+                <MenuItem Header="Disconnect" Command="{Binding DisconnectCommand}"/>
         </Menu>
         
-        <StackPanel Grid.Row="1" Grid.Column="0">
-            <TextBlock Text="{Binding TerminalOutputText}" Foreground="White"/>
+        <StackPanel Grid.Row="1" Grid.Column="0" Margin="10">
+            <ScrollViewer MaxWidth="700" MaxHeight="400">
+                <StackPanel>
+                    <TextBlock Text="Terminal Output:" Classes="Header"/>
+                    <TextBlock Text="{Binding TerminalOutputText}" Foreground="White"/>
+                </StackPanel>
+            </ScrollViewer>
+        </StackPanel>
+        
+        <StackPanel Grid.Row="1" Grid.Column="1" MaxWidth="700" Margin="10">
+            
         </StackPanel>
     </Grid>
 

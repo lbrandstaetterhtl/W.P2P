@@ -28,11 +28,23 @@ public partial class MainViewModel : ObservableObject
 
     public void Connect(Contact contact)
     {
-        var result = _client.Connect(contact);
+        var result = _client.Connect(contact, AppData.Config.Id);
         
         if (!result)
         {
             AppData.TerminalOutput.Add("Failed to connect to the selected contact.");
+            _client.Connection = new Connection();
+        }
+    }
+    
+    [RelayCommand]
+    private void Disconnect()
+    {
+        var result = _client.Disconnect();
+
+        if (!result)
+        {
+            AppData.TerminalOutput.Add("Failed to disconnect the selected contact.");
         }
     }
 }
