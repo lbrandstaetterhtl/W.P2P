@@ -291,13 +291,15 @@ public class P2PClient
             return true;
         }
         
-        var reply = Handshake(contact).Serialize().ToArray();
+        var handshake = Handshake(contact).Serialize().ToArray();
         
-        reply = GotFrame(reply).Serialize().ToArray();
+        //reply -> HandshakeReply
+        var reply = GotFrame(handshake).Serialize().ToArray();
         
+        //reply -> OkReply
         reply = GotFrame(reply).Serialize().ToArray();
 
-       GotFrame(reply);
+        GotFrame(reply);
         
         Connection = new Connection();
         Connection.TargetId = contact.Id;
@@ -321,7 +323,10 @@ public class P2PClient
             
             var bytes = frame.Serialize().ToArray();
             
-            GotFrame(bytes);
+            //reply -> OkReply
+            var reply = GotFrame(bytes).Serialize().ToArray();
+            
+            GotFrame(reply);
             return true;
         }
         catch (ContactNotFound c)
