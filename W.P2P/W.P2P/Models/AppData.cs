@@ -10,8 +10,8 @@ public class AppData : ObservableObject
     
     public static ObservableCollection<string> TerminalOutput = new();
 
-    public static ObservableCollection<StringFrame> SentMessages = new();
-    public static ObservableCollection<StringFrame> ReceivedMessages = new();
+    public static ObservableCollection<string> SentMessages = new();
+    public static ObservableCollection<string> ReceivedMessages = new();
     
     
 }

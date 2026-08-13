@@ -1,8 +1,5 @@
 using System;
 using System.Collections.ObjectModel;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Interactivity;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using W.P2P.Models;
@@ -28,12 +25,14 @@ public partial class MainViewModel : ObservableObject
 
     public void Connect(Contact contact)
     {
-        var result = Client.Connect(contact, AppData.Config.Id);
+        var result = Client.Connect(contact);
         
         if (!result)
         {
             AppData.TerminalOutput.Add("Failed to connect to the selected contact.");
-            Client.Connection = new Connection();
+            Client.Connection.TargetId = "";
+            Client.Connection.ConnectionId = "";
+            Client.Connection.IsConnected = false;
         }
     }
     

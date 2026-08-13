@@ -14,7 +14,9 @@ public class P2PClient
     
     public Connection Connection = new();
 
-    public ByteFrame lastSentFrame;
+    private List<ByteFrame> _lastSentFrames = new();
+
+    private readonly Queue<ByteFrame> _frameQueue = new();
     
     public ByteFrame Handshake(Contact contact)
     {
@@ -25,12 +27,11 @@ public class P2PClient
 
         var frame = BuildByteFrame(targetId: contact.Id, sourceId: AppData.Config.Id, data: myPublicKey,
             id: Guid.NewGuid().ToString(), type: FrameType.HandshakeInit);
-        SendFrame(frame);
         
-        lastSentFrame = frame;
+        AppData.TerminalOutput.Add($"Sending Handshake [id: {frame.Id}] request to {contact.Name}|{contact.Id}...\n");
+        _frameQueue.Enqueue(frame);
+        SendFrame();
         
-        AppData.TerminalOutput.Add($"Sending Handshake [id: {frame.Id}] request to {contact.Name}|{AppData.Config.Id}...\n");
-
         return frame;
     }
 
@@ -54,11 +55,13 @@ public class P2PClient
             
             AppData.TerminalOutput.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
 
-            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId, data: new byte[0], id: Guid.NewGuid().ToString(), type: FrameType.OkReply);
+            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: AppData.Config.Id, data: new byte[0], id: Guid.NewGuid().ToString(), type: FrameType.OkReply);
             
             AppData.TerminalOutput.Add($"Sending Ok reply [id: {reply.Id}] to {contact.Name}|{stringFrame.SourceId}...\n");
-            SendFrame(reply);
-            lastSentFrame = reply;
+            
+            _frameQueue.Enqueue(reply);
+            SendFrame();
+
             return reply; //TODO: SEND LOGIC
         }
         catch (ContactNotFound c)
@@ -69,15 +72,12 @@ public class P2PClient
         }
         catch (BrokenFrame e)
         {
-            byte[] errorMessage = Encoding.UTF8.GetBytes(e.Message);
-            
-            var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: frame.ToStringFrame().TargetId, data: errorMessage, id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply);
+            var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: AppData.Config.Id, data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply);
             
             AppData.TerminalOutput.Add($"Error: {e.Message}\n");
             
-            lastSentFrame = reply;
-            
-            SendFrame(reply);
+            _frameQueue.Enqueue(reply);
+            SendFrame();
             
             return reply;
         }
@@ -94,9 +94,9 @@ public class P2PClient
 
             AppData.TerminalOutput.Add(
                 $"Error reply received from {contact.Name}|{stringFrame.SourceId}: {stringFrame.Data}\n");
-            AppData.TerminalOutput.Add($"Trying to send the frame [id: {lastSentFrame.Id}] again...\n");
-
-            SendFrame(lastSentFrame);
+            AppData.TerminalOutput.Add($"Trying to send the frame [id: {stringFrame.Id}] again...\n");
+            
+            SendFrame(true, stringFrame.Data);
         }
         catch (ContactNotFound c)
         {
@@ -119,7 +119,7 @@ public class P2PClient
 
             byte[] myPublicKey = ecdh.ExportSubjectPublicKeyInfo();
 
-            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId,
+            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: AppData.Config.Id,
                 data: myPublicKey, id: Guid.NewGuid().ToString(), type: FrameType.HandshakeReply);
             
             AppData.TerminalOutput.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
@@ -128,8 +128,8 @@ public class P2PClient
 
             ecdh.Dispose();
             
-            SendFrame(reply);
-            lastSentFrame = reply;
+            _frameQueue.Enqueue(reply);
+            SendFrame();
             return reply;
         }
         catch (ContactNotFound c)
@@ -141,9 +141,9 @@ public class P2PClient
         {
             AppData.TerminalOutput.Add($"Error: {e.Message}\n");
             
-            var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: frame.ToStringFrame().TargetId, data: Encoding.UTF8.GetBytes(e.Message), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply);
-            lastSentFrame = reply;
-            SendFrame(reply);
+            var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: AppData.Config.Id, data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply);
+            _frameQueue.Enqueue(reply);
+            SendFrame();
             return reply;
         }
     }
@@ -154,13 +154,18 @@ public class P2PClient
         {
             //DEBUG
             //throw new Exception("DEBUG");
+            
+            stringFrame = frame.ToStringFrame(); 
+            var decrypted = SecurityManager.Decrypt(frame.Data.ToArray(), Connection.SharedKey);
+            var message = Encoding.UTF8.GetString(decrypted);
+            
+            AppData.ReceivedMessages.Add($"Message from {Connection.TargetName}|{Connection.TargetId}: {message}");
 
-            stringFrame = frame.ToStringFrame();
-            AppData.ReceivedMessages.Add(stringFrame);
-
-            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId,
+            var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id,
                 data: new byte[0], id: Connection.ConnectionId, type: FrameType.OkReply);
 
+            _frameQueue.Enqueue(reply);
+            SendFrame();
             return reply;
         }
         catch (ContactNotFound c)
@@ -172,16 +177,28 @@ public class P2PClient
         catch (Exception e)
         {
             AppData.TerminalOutput.Add($"Error: {e.Message}\n");
-            var messageBytes = Encoding.UTF8.GetBytes(e.Message);
-            var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: frame.ToStringFrame().TargetId,
-                data: messageBytes, id: Connection.ConnectionId, type: FrameType.ErrorReply);
+            var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id,
+                data: frame.Id.ToArray(), id: Connection.ConnectionId, type: FrameType.ErrorReply);
             stringFrame = null;
+            _frameQueue.Enqueue(reply);
+            SendFrame();
             return reply;
         }
     }
 
-    public void SendFrame(ByteFrame frame)
+    public void SendFrame(bool errorReply = false, string id = "")
     {
+        var frame = new ByteFrame();
+        if (!errorReply)
+        {
+            frame = _frameQueue.Dequeue();
+            _lastSentFrames.Add(frame);
+        }
+        else
+        {
+            frame = _lastSentFrames.FirstOrDefault(x => x.Id.SequenceEqual(Encoding.ASCII.GetBytes(id))) ?? throw new Exception($"No frame found with id {id}");
+        }
+        
         var stringFrame = frame.ToStringFrame();
         AppData.TerminalOutput.Add($"Sending frame [id: {frame.Id}] to {stringFrame.TargetId}...\n");
         
@@ -191,13 +208,11 @@ public class P2PClient
         AppData.TerminalOutput.Add($"DEBUG: Frame targetId: {stringFrame.TargetId}\n");
         AppData.TerminalOutput.Add($"DEBUG: Frame sourceId: {stringFrame.SourceId}\n");
         AppData.TerminalOutput.Add($"DEBUG: Frame data: {stringFrame.Data}\n");
-        
-        lastSentFrame = frame;
     }
     
     public ByteFrame SendMessage(byte[] data, byte[] key)
     {
-        if (string.IsNullOrEmpty(Connection.TargetId) || string.IsNullOrEmpty(Connection.SourceId))
+        if (!Connection.IsConnected)
         {
             Console.ForegroundColor = ConsoleColor.Red;
             AppData.TerminalOutput.Add("Error: No connection established. Please connect to a contact first.\n");
@@ -205,11 +220,11 @@ public class P2PClient
             return null;
         }
         
-        var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: Connection.SourceId, data: data, id: Connection.ConnectionId, type: FrameType.Data);
-        var stringFrame = frame.ToStringFrame();
-        AppData.SentMessages.Add(stringFrame);
-        SendFrame(frame);
-        
+        var encrypted = SecurityManager.Encrypt(data, key);
+        var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: encrypted, id: Connection.ConnectionId, type: FrameType.Data);
+        AppData.SentMessages.Add($"Message sent to {Connection.TargetName}|{Connection.TargetId}.");
+        _frameQueue.Enqueue(frame);
+        SendFrame();
         return frame;
     }
     
@@ -230,7 +245,7 @@ public class P2PClient
         return frame;
     }
 
-    public bool Connect(Contact contact, string sourceId)
+    public bool Connect(Contact contact)
     {
         var reply = Handshake(contact);
         
@@ -250,8 +265,10 @@ public class P2PClient
         
         Connection = new Connection();
         Connection.TargetId = contact.Id;
-        Connection.SourceId = sourceId;
         Connection.ConnectionId = Guid.NewGuid().ToString();
+        Connection.IsConnected = true;
+        Connection.TargetName = contact.Name;
+        Connection.SharedKey = contact.Key;
         return true;
     }
 
@@ -259,12 +276,11 @@ public class P2PClient
     {
         try
         {
-            var contact = AppData.Config.IdMap.FirstOrDefault(x => x.Id == Connection.TargetId) ??
-                          throw new ContactNotFound($"No contact found for {Connection.TargetId}.");
-            AppData.TerminalOutput.Add($"Disconnecting with {contact.Name}|{contact.Id}...\n");
+            AppData.TerminalOutput.Add($"Disconnecting with {Connection.TargetName}|{Connection.TargetId}...\n");
             
-            var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: Connection.SourceId, data: new byte[0], id: Connection.ConnectionId, type: FrameType.Disconnect);
-            SendFrame(frame);
+            var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: new byte[0], id: Connection.ConnectionId, type: FrameType.Disconnect);
+            _frameQueue.Enqueue(frame);
+            SendFrame();
             
             var reply = GotDisconnectRequest(frame);
 
@@ -276,7 +292,9 @@ public class P2PClient
             else
             {
                 GotOkReply(reply);
-                Connection = new Connection();
+                Connection.TargetId = "";
+                Connection.ConnectionId = "";
+                Connection.IsConnected = false;
                 return true;
             }
         }
@@ -296,10 +314,7 @@ public class P2PClient
     {
         var stringFrame = frame.ToStringFrame();
         
-        var contact = AppData.Config.IdMap.FirstOrDefault(x => x.Id == stringFrame.SourceId) ??
-                      throw new ContactNotFound($"No contact found for {stringFrame.SourceId}.");
-        
-        AppData.TerminalOutput.Add($"Got Ok Reply from {contact.Name}|{contact.Id} for frame {lastSentFrame.Id}\n");
+        AppData.TerminalOutput.Add($"Got Ok Reply from {Connection.TargetName}|{Connection.TargetId} for frame {stringFrame.Id}\n");
     }
 
     public ByteFrame GotDisconnectRequest(ByteFrame frame)
@@ -311,21 +326,19 @@ public class P2PClient
             
             var stringFrame = frame.ToStringFrame();
 
-            var contact = AppData.Config.IdMap.FirstOrDefault(x => x.Id == stringFrame.SourceId) ??
-                          throw new ContactNotFound($"No contact found for {stringFrame.SourceId}.");
-
             AppData.TerminalOutput.Add(
-                $"Got Disconnect Request from {contact.Name}|{contact.Id} for frame {lastSentFrame.Id}\n");
+                $"Got Disconnect Request from {Connection.TargetName}|{Connection.TargetId} for frame {stringFrame.Id}\n");
 
-            AppData.TerminalOutput.Add($"Disconnecting with {contact.Name}|{contact.Id}...\n");
+            AppData.TerminalOutput.Add($"Disconnecting with {Connection.TargetName}|{Connection.TargetId}...\n");
 
             Connection = new Connection();
 
-            AppData.TerminalOutput.Add($"Sending Ok reply to {contact.Name}|{contact.Id}...\n");
+            AppData.TerminalOutput.Add($"Sending Ok reply to {Connection.TargetName}|{Connection.TargetId}...\n");
             
-            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId, data: new byte[0], id: Guid.NewGuid().ToString(), type: FrameType.OkReply);
-            SendFrame(reply);
-            lastSentFrame = reply;
+            var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: new byte[0], id: Guid.NewGuid().ToString(), type: FrameType.OkReply);
+
+            _frameQueue.Enqueue(reply);
+            SendFrame();
             return reply;
         }
         catch (ContactNotFound c)
@@ -335,13 +348,11 @@ public class P2PClient
         }
         catch (BrokenFrame ex)
         {
-            var messageBytes = Encoding.ASCII.GetBytes(ex.Message);
+            var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id,
+                data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply);
             
-            var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: frame.ToStringFrame().TargetId,
-                data: messageBytes, id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply);
-            
-            SendFrame(reply);
-            lastSentFrame = reply;
+            _frameQueue.Enqueue(reply);
+            SendFrame();
             return reply;
         }
     }

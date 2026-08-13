@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
@@ -39,8 +38,17 @@ public class Config
         config.BuildDefault();
         if (File.Exists(ConfigFilePath))
         {
-            var json = File.ReadAllText(ConfigFilePath);
-            config = JsonSerializer.Deserialize<Config>(json);
+            try
+            {
+                var json = File.ReadAllText(ConfigFilePath);
+                config = JsonSerializer.Deserialize<Config>(json);
+            }
+            catch (Exception)
+            {
+                config = new Config();
+                config.BuildDefault();
+                config.SaveConfig();
+            }
 
             Id = config!.Id;
             Name = config.Name;

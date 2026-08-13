@@ -30,8 +30,10 @@ public class DataModels
     
     public class Connection
     {
+        public byte[] SharedKey { get; set; }
+        public string TargetName { get; set; }
         public string TargetId { get; set; }
-        public string SourceId { get; set; }
         public string ConnectionId { get; set; }
+        public bool IsConnected { get; set; }
     }
 }
