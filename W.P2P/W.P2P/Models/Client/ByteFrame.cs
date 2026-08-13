@@ -50,6 +50,7 @@ public class ByteFrame
             frame.Add((byte)Data.Count);
             frame.AddRange(Data);
             frame.Add(Checksum);
+            frame.Add(0xAA);
             
             return frame;
         }
@@ -57,6 +58,9 @@ public class ByteFrame
         public static ByteFrame Deserialize(List<byte> data)
         {
             if (data[0] != 0xAA)
+                throw new BrokenFrame("Error: Frame is not valid!");
+            
+            if (data[^1] != 0xAA)
                 throw new BrokenFrame("Error: Frame is not valid!");
 
             var frame = new ByteFrame();
@@ -81,14 +85,8 @@ public class ByteFrame
             frame.Data = data.GetRange(pos, dataLen).ToList();
             pos += dataLen;
             
-
-            byte oldChecksum = data[pos];
-            frame.Checksum = oldChecksum;
-
-            frame.CalculateChecksum();
-            if (frame.Checksum != oldChecksum)
-                throw new BrokenFrame("Checksum-Failed!");
-
+            frame.Validate(frame, data[pos]);
+            
             return frame;
         }
 
@@ -102,5 +100,18 @@ public class ByteFrame
                 Id = Encoding.UTF8.GetString(Id.ToArray()),
                 Type = Type
             };
+        }
+
+        public void Validate(ByteFrame byteFrame, byte oldChecksum)
+        {
+            if (TargetId.Count != 36) throw new BrokenFrame("Target Id is not valid!");
+            if (SourceId.Count != 36) throw new BrokenFrame("Source Id is not valid!");
+            if (Id.Count != 36) throw new BrokenFrame("Id is not valid!");
+            
+            byteFrame.Checksum = oldChecksum;
+
+            byteFrame.CalculateChecksum();
+            if (byteFrame.Checksum != oldChecksum)
+                throw new BrokenFrame("Checksum-Failed!");
         }
 }

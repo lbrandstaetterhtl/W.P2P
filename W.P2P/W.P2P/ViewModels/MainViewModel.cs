@@ -11,16 +11,13 @@ public partial class MainViewModel : ObservableObject
 {
     private static readonly P2PClient Client = new();
     
-    private ObservableCollection<string> TerminalOutput => AppData.TerminalOutput;
+    public ObservableCollection<string> TerminalOutput => AppData.TerminalOutput;
     
     public ObservableCollection<Contact> Contacts => AppData.Config.IdMap;
-    
-    public string TerminalOutputText => string.Join(Environment.NewLine, TerminalOutput);
 
     public MainViewModel()
     {
-        AppData.TerminalOutput.CollectionChanged += (_, _) =>
-            OnPropertyChanged(nameof(TerminalOutputText));
+        
     }
 
     public void Connect(Contact contact)
@@ -33,6 +30,7 @@ public partial class MainViewModel : ObservableObject
             Client.Connection.TargetId = "";
             Client.Connection.ConnectionId = "";
             Client.Connection.IsConnected = false;
+            Client.Connection.SharedKey = [];
         }
     }
     

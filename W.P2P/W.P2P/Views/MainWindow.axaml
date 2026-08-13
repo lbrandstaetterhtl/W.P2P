@@ -13,30 +13,32 @@
         <vm:MainViewModel />
     </Design.DataContext>
     
-    <Grid RowDefinitions="Auto, *" ColumnDefinitions="Auto, *" x:Name="Root" x:DataType="vm:MainViewModel">
-        <Menu Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2">
-                <MenuItem Header="Connect" ItemsSource="{Binding Contacts}">
-                    <MenuItem.ItemTemplate>
-                        <DataTemplate>
-                            <MenuItem Header="{Binding Name}" Click="ConnectClick"/>
-                        </DataTemplate>
-                    </MenuItem.ItemTemplate>
-                </MenuItem>
-                <MenuItem Header="Disconnect" Command="{Binding DisconnectCommand}"/>
+    <Grid RowDefinitions="Auto, *" x:Name="Root" x:DataType="vm:MainViewModel">
+        <Menu Grid.Row="0" Grid.Column="0">
+            <MenuItem Header="Connect" ItemsSource="{Binding Contacts}">
+                <MenuItem.ItemTemplate>
+                    <DataTemplate>
+                        <MenuItem Header="{Binding Name}" Click="ConnectClick"/>
+                    </DataTemplate>
+                </MenuItem.ItemTemplate>
+            </MenuItem>
+            <MenuItem Header="Disconnect" Command="{Binding DisconnectCommand}"/>
         </Menu>
         
-        <StackPanel Grid.Row="1" Grid.Column="0" Margin="10">
-            <ScrollViewer MaxWidth="700" MaxHeight="400">
+        <Grid Grid.Row="1" Grid.Column="0" Margin="10" HorizontalAlignment="Stretch" >
+            <ScrollViewer x:Name="TerminalScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="Terminal Output:" Classes="Header"/>
-                    <TextBlock Text="{Binding TerminalOutputText}" Foreground="White"/>
+                    <ItemsControl ItemsSource="{Binding TerminalOutput}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Classes="TerminalOutput"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </ScrollViewer>
-        </StackPanel>
-        
-        <StackPanel Grid.Row="1" Grid.Column="1" MaxWidth="700" Margin="10">
-            
-        </StackPanel>
+        </Grid>
     </Grid>
 
 </Window>
