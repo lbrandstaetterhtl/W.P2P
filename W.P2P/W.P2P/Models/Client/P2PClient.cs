@@ -47,10 +47,10 @@ public class P2PClient
 
             if (!Handshakes.TryGetValue(stringFrame.SourceId, out var ecdh))
                 throw new HandshakeNotFound($"No handshake found for {stringFrame.SourceId}.");
-            
+
             var contact = AppData.Config.IdMap.FirstOrDefault(x => x.Id == stringFrame.SourceId) ??
                           throw new ContactNotFound($"Contact with ID {stringFrame.SourceId} not found.");
-            
+
             contact.Key = SecurityManager.DeriveKey(ecdh, theirKey);
 
             Handshakes.Remove(stringFrame.SourceId);
@@ -71,7 +71,7 @@ public class P2PClient
         }
         catch (ContactNotFound c)
         {
-            AppData.TerminalOutput.Add($"Error: {c.Message}\n");
+            AppData.TerminalOutput.Add($"ContactNotFound Exception at GotHandshakeReply: {c.Message}\n");
             return null;
         }
         catch (BrokenFrame b)
@@ -79,7 +79,7 @@ public class P2PClient
             var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: AppData.Config.Id,
                 data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply);
 
-            AppData.TerminalOutput.Add($"Error: {b.Message}\n");
+            AppData.TerminalOutput.Add($"BrokenFrame Exception at GotHandshakeReply: {b.Message}\n");
 
             _frameQueue.Enqueue(reply);
             SendFrame();
@@ -88,7 +88,12 @@ public class P2PClient
         }
         catch (HandshakeNotFound h)
         {
-            AppData.TerminalOutput.Add($"Error: {h.Message}\n");
+            AppData.TerminalOutput.Add($"HandshakeNotFound Exception at GotHandshakeReply: {h.Message}\n");
+            return null;
+        }
+        catch (Exception e)
+        {
+            AppData.TerminalOutput.Add($"Unexpected Exception at GotHandshakeReply: \n {e.Message}\n");
             return null;
         }
     }
@@ -110,7 +115,7 @@ public class P2PClient
         }
         catch (ContactNotFound c)
         {
-            AppData.TerminalOutput.Add($"Error: {c.Message}\n");
+            AppData.TerminalOutput.Add($"ContactNotFound Exception at GotErrorReply: {c.Message}\n");
         }
         catch (Exception e)
         {
@@ -316,27 +321,33 @@ public class P2PClient
         try
         {
             AppData.TerminalOutput.Add($"Disconnecting with {Connection.TargetName}|{Connection.TargetId}...\n");
-            
-            var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: new byte[0], id: Connection.ConnectionId, type: FrameType.Disconnect);
+
+            var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: new byte[0],
+                id: Connection.ConnectionId, type: FrameType.Disconnect);
             _frameQueue.Enqueue(frame);
             SendFrame();
-            
+
             var bytes = frame.Serialize().ToArray();
-            
+
             //reply -> OkReply
             var reply = GotFrame(bytes).Serialize().ToArray();
-            
+
             GotFrame(reply);
             return true;
         }
         catch (ContactNotFound c)
         {
-            AppData.TerminalOutput.Add($"Error: {c.Message}\n");
+            AppData.TerminalOutput.Add($"ContactNotFound Exception at Disconnect: {c.Message}\n");
             return false;
         }
-        catch (BrokenFrame e)
+        catch (BrokenFrame b)
         {
-            AppData.TerminalOutput.Add($"Error: {e.Message}\n");
+            AppData.TerminalOutput.Add($"BrokenFrame Exception at Disconnect: {b.Message}\n");
+            return false;
+        }
+        catch (Exception e)
+        {
+            AppData.TerminalOutput.Add($"Unexpected Exception at Disconnect: {e.Message}\n");
             return false;
         }
     }
