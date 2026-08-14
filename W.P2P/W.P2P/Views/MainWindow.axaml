@@ -8,10 +8,10 @@
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Title="W.P2P">
-
-    <Design.DataContext>
-        <vm:MainViewModel />
-    </Design.DataContext>
+    
+    <Window.DataContext>
+        <vm:MainViewModel/>
+    </Window.DataContext>
     
     <Grid RowDefinitions="Auto, *" x:Name="Root" x:DataType="vm:MainViewModel">
         <Menu Grid.Row="0" Grid.Column="0">

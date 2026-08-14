@@ -18,6 +18,17 @@ public class P2PClient
 
     private readonly Queue<ByteFrame> _frameQueue = new();
     
+    private readonly SerialTransport _serialTransport = new ("COM3", 9600);
+    
+    public P2PClient()
+    {
+        AppData.TerminalOutput.Add("P2PClient constructor called!");
+        _serialTransport.Connect();
+        _serialTransport.OnFrameReceived += (data) => GotFrame(data);  // ← VOR StartReading!
+        _serialTransport.StartReading();
+        AppData.TerminalOutput.Add("StartReading called!");
+    }
+    
     public ByteFrame Handshake(Contact contact)
     {
         var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
@@ -240,6 +251,8 @@ public class P2PClient
         var serialized = frame.Serialize();
         AppData.TerminalOutput.Add($"DEBUG: Serialized frame: {BitConverter.ToString(serialized.ToArray())}\n");
         
+        _serialTransport.SendFrame(serialized.ToArray());
+        
         var deserialized = ByteFrame.Deserialize(serialized);
         AppData.TerminalOutput.Add($"DEBUG: Deserialized frame: {BitConverter.ToString(deserialized.Serialize().ToArray())}\n");
         
@@ -297,14 +310,6 @@ public class P2PClient
         }
         
         var handshake = Handshake(contact).Serialize().ToArray();
-        
-        //reply -> HandshakeReply
-        var reply = GotFrame(handshake).Serialize().ToArray();
-        
-        //reply -> OkReply
-        reply = GotFrame(reply).Serialize().ToArray();
-
-        GotFrame(reply);
         
         Connection = new Connection();
         Connection.TargetId = contact.Id;

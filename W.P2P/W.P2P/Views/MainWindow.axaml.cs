@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using W.P2P.Models;
@@ -11,7 +12,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _vm = new MainViewModel();
+        _vm = DataContext as MainViewModel ?? throw new InvalidOperationException("DataContext must be of type MainViewModel");
     }
 
     public void ConnectClick(object sender, RoutedEventArgs e)

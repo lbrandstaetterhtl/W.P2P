@@ -9,15 +9,15 @@ namespace W.P2P.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private static readonly P2PClient Client = new();
-    
+ 
+    public P2PClient Client { get; set; }
     public ObservableCollection<string> TerminalOutput => AppData.TerminalOutput;
     
     public ObservableCollection<Contact> Contacts => AppData.Config.IdMap;
 
     public MainViewModel()
     {
-        
+        Client = new P2PClient();
     }
 
     public void Connect(Contact contact)
