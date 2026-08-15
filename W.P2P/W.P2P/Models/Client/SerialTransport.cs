@@ -9,10 +9,11 @@ namespace W.P2P.Models;
 
 public class SerialTransport
 {
+    private const int HEADER_SIZE = 145;
     private readonly SerialPort _serialPort;
     private bool _isReading = false;
     private Thread _readingThread;
-    public Action<byte[]> OnFrameReceived { get; set; }
+    public event Action<byte[]> OnFrameReceived;
     
     public SerialTransport(string portName, int baudRate)
     {
@@ -28,8 +29,6 @@ public class SerialTransport
                 _serialPort.Open();
                 AppData.TerminalOutput.Add(
                     $"Serial port opened: {_serialPort.PortName} at {_serialPort.BaudRate} baud.");
-                
-                
             }
             else
             {
@@ -73,161 +72,60 @@ public class SerialTransport
     }
     
     public byte[] ReceiveFrame()
-{
-    try
     {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            AppData.TerminalOutput.Add("ReadFrame started...");
-        });
+        List<byte> frame = new List<byte>();
         
-        byte[] startSyncArray = ReadExactBytes(1);
-        if (startSyncArray == null)
-        {
-            Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                AppData.TerminalOutput.Add("ERROR: startSync timeout!");
-            });
-            return new byte[0];
-        }
-        
-        byte startSync = startSyncArray[0];
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            AppData.TerminalOutput.Add($"Got start sync: {startSync:X2}");
-        });
-        
-        if (startSync != 0xAA)
-        {
-            Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                AppData.TerminalOutput.Add($"ERROR: Invalid start sync! Got {startSync:X2}");
-            });
-            return new byte[0];
-        }
-        
-        byte[] header = ReadExactBytes(111);
-        if (header == null)
-        {
-            Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                AppData.TerminalOutput.Add("ERROR: header timeout!");
-            });
-            return new byte[0];
-        }
-        
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            AppData.TerminalOutput.Add("Got header (111 bytes)");
-        });
-        
-        byte[] lengthBytes = ReadExactBytes(4);
-        if (lengthBytes == null)
-        {
-            Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                AppData.TerminalOutput.Add("ERROR: lengthBytes timeout!");
-            });
-            return new byte[0];
-        }
-        
-        int dataLen = BitConverter.ToInt32(lengthBytes, 0);
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            AppData.TerminalOutput.Add($"Got length: {dataLen} bytes");
-        });
-        
-        if (dataLen < 0 || dataLen > 512)
-        {
-            Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                AppData.TerminalOutput.Add($"ERROR: Invalid dataLen: {dataLen}");
-            });
-            return new byte[0];
-        }
-        
-        byte[] data = new byte[0];
-        if (dataLen > 0)
-        {
-            data = ReadExactBytes(dataLen);
-            if (data == null)
-            {
-                Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    AppData.TerminalOutput.Add("ERROR: data timeout!");
-                });
-                return new byte[0];
-            }
-            
-            Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                AppData.TerminalOutput.Add($"Got data: {dataLen} bytes");
-            });
-        }
-        
-        byte[] frame = new byte[1 + 111 + 4 + dataLen];
-        int pos = 0;
-        frame[pos++] = 0xAA;
-        Array.Copy(header, 0, frame, pos, 111);
-        pos += 111;
-        Array.Copy(lengthBytes, 0, frame, pos, 4);
-        pos += 4;
-        if (dataLen > 0)
-        {
-            Array.Copy(data, 0, frame, pos, dataLen);
-        }
-        
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            AppData.TerminalOutput.Add($"Frame complete: {frame.Length} bytes total");
-        });
-        
-        return frame;
-    }
-    catch (Exception ex)
-    {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            AppData.TerminalOutput.Add($"ERROR in ReadFrame: {ex.Message} | {ex.StackTrace}");
-        });
-        return new byte[0];
-    }
-}
+        var header = ReadBytes(HEADER_SIZE);
+        frame.AddRange(header);
 
-private byte[] ReadExactBytes(int count)
-{
-    byte[] buffer = new byte[count];
-    int totalRead = 0;
+        var lenghtArray = ReadBytes(1);
+        var dataLength = lenghtArray[0];
+        frame.AddRange(lenghtArray);
+        
+        var data = ReadBytes(dataLength);
+        frame.AddRange(data);
+        
+        var footer = ReadBytes(2);
+        frame.AddRange(footer);
+        
+        return frame.ToArray();
+    }
 
-    while (totalRead < count)
+    public byte[] ReadBytes(int count)
     {
         try
         {
-            int bytesRead = _serialPort.Read(buffer, totalRead, count - totalRead);
-            
-            if (bytesRead == 0)
+            bool finished = false;
+            byte[] buffer = new byte[count];
+            int totalRead = 0;
+
+            while (!finished)
             {
-                Dispatcher.UIThread.InvokeAsync(() =>
+                if (_serialPort.BytesToRead >= count)
                 {
-                    AppData.TerminalOutput.Add($"ReadExactBytes: got 0 bytes while reading {count}!");
-                });
-                return null;
+                    int available = _serialPort.BytesToRead;
+                    int toRead = Math.Min(available, count - totalRead);
+                    int bytesRead = _serialPort.Read(buffer, totalRead, toRead);
+                    totalRead += bytesRead;
+                }
+                else
+                {
+                    Thread.Sleep(50);
+                }
             }
 
-            totalRead += bytesRead;
+            return buffer;
         }
-        catch (TimeoutException)
+        catch (Exception ex)
         {
             Dispatcher.UIThread.InvokeAsync(() =>
             {
-                AppData.TerminalOutput.Add($"ReadExactBytes: timeout! wanted {count}, got {totalRead}");
+                AppData.TerminalOutput.Add($"Error in reading frame: {ex.Message}");
             });
-            return null;
+            
+            return [];
         }
     }
-
-    return buffer;
-}
     
     public void StartReading()
     {
@@ -248,18 +146,17 @@ private byte[] ReadExactBytes(int count)
         {
             while (_isReading)
             {
-                if (_serialPort.IsOpen)  // ← NUR IsOpen check, NICHT BytesToRead!
+                if (_serialPort.IsOpen)
                 {
-                    var frame = ReceiveFrame();  // ← ReceiveFrame wartet selbst auf Bytes
+                    var frame = ReceiveFrame();
                 
                     if (frame.Length > 0)
                     {
                         Dispatcher.UIThread.InvokeAsync(() =>
                         {
                             AppData.TerminalOutput.Add($"Received frame from UNO: {frame.Length} bytes");
+                            OnFrameReceived?.Invoke(frame);
                         });
-                    
-                        OnFrameReceived?.Invoke(frame);
                     }
                 }
             }

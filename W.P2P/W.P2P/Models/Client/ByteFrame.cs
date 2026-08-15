@@ -7,8 +7,10 @@ namespace W.P2P.Models;
 
 public class ByteFrame
 {
+        //36
         public List<byte> TargetId { get; set; }
         public List<byte> SourceId { get; set; }
+        public List<byte> ConnectionId { get; set; }
         public byte Checksum { get; set; }
         public List<byte> Data { get; set; }
         public List<byte> Id { get; set; }
@@ -19,6 +21,7 @@ public class ByteFrame
             byte crc = 0x00;
             var allData = new List<byte>();
     
+            allData.AddRange(ConnectionId);
             allData.AddRange(TargetId);
             allData.AddRange(SourceId);
             allData.AddRange(Data);
@@ -42,6 +45,7 @@ public class ByteFrame
         {
             var frame = new List<byte> {0xAA};
         
+            frame.AddRange(ConnectionId);
             frame.AddRange((byte)Type);
             frame.AddRange(Id);
             frame.AddRange(TargetId);
@@ -65,6 +69,9 @@ public class ByteFrame
 
             var frame = new ByteFrame();
             int pos = 1;
+            
+            frame.ConnectionId = data.GetRange(pos, 36).ToList();
+            pos += 36;
             
             frame.Type = (DataModels.FrameType)data[pos++];
             
@@ -104,6 +111,7 @@ public class ByteFrame
 
         public void Validate(ByteFrame byteFrame, byte oldChecksum)
         {
+            if (ConnectionId.Count != 36) throw new BrokenFrame("Connection Id is not valid!");
             if (TargetId.Count != 36) throw new BrokenFrame("Target Id is not valid!");
             if (SourceId.Count != 36) throw new BrokenFrame("Source Id is not valid!");
             if (Id.Count != 36) throw new BrokenFrame("Id is not valid!");
