@@ -74,20 +74,26 @@ public class SerialTransport
     public byte[] ReceiveFrame()
     {
         List<byte> frame = new List<byte>();
-        
+    
+        var sync = ReadBytes(1);
+        frame.AddRange(sync);
+    
         var header = ReadBytes(HEADER_SIZE);
         frame.AddRange(header);
 
-        var lenghtArray = ReadBytes(1);
-        var dataLength = lenghtArray[0];
-        frame.AddRange(lenghtArray);
-        
-        var data = ReadBytes(dataLength);
-        frame.AddRange(data);
-        
+        var lengthArray = ReadBytes(1);
+        var dataLength = lengthArray[0];
+        frame.AddRange(lengthArray);
+    
+        if (dataLength > 0)
+        {
+            var data = ReadBytes(dataLength);
+            frame.AddRange(data);
+        }
+    
         var footer = ReadBytes(2);
         frame.AddRange(footer);
-        
+    
         return frame.ToArray();
     }
 
@@ -95,13 +101,12 @@ public class SerialTransport
     {
         try
         {
-            bool finished = false;
             byte[] buffer = new byte[count];
             int totalRead = 0;
 
-            while (!finished)
+            while (totalRead < count)
             {
-                if (_serialPort.BytesToRead >= count)
+                if (_serialPort.BytesToRead > 0)
                 {
                     int available = _serialPort.BytesToRead;
                     int toRead = Math.Min(available, count - totalRead);
@@ -110,7 +115,7 @@ public class SerialTransport
                 }
                 else
                 {
-                    Thread.Sleep(50);
+                    Thread.Sleep(10);
                 }
             }
 
@@ -122,7 +127,7 @@ public class SerialTransport
             {
                 AppData.TerminalOutput.Add($"Error in reading frame: {ex.Message}");
             });
-            
+        
             return [];
         }
     }
@@ -141,24 +146,22 @@ public class SerialTransport
         {
             AppData.TerminalOutput.Add("ReadThread is now running!");
         });
-    
+
         try
         {
             while (_isReading)
             {
-                if (_serialPort.IsOpen)
+                if (_serialPort.IsOpen && _serialPort.BytesToRead > 0)
                 {
                     var frame = ReceiveFrame();
-                
+
                     if (frame.Length > 0)
                     {
-                        Dispatcher.UIThread.InvokeAsync(() =>
-                        {
-                            AppData.TerminalOutput.Add($"Received frame from UNO: {frame.Length} bytes");
-                            OnFrameReceived?.Invoke(frame);
-                        });
+                        OnFrameReceived?.Invoke(frame);
                     }
                 }
+            
+                Thread.Sleep(50);
             }
         }
         catch (Exception ex)

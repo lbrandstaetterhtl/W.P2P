@@ -12,27 +12,24 @@ public class P2PClient
     //pending handshakes
     private static readonly Dictionary<string, ECDiffieHellman> Handshakes = new();
     
-    private const string HANDESHAKE_ID = "00000000-0000-0000-0000-000000000000";
-    
     public Connection Connection = new();
 
     private readonly List<ByteFrame> _lastSentFrames = new();
 
     private readonly Queue<ByteFrame> _frameQueue = new();
+    private readonly SerialTransport _serialTransport = new("COM4", 9600);
+    private readonly string _handshakeId = "00000000-0000-0000-0000-000000000000";
     
-    private readonly SerialTransport _serialTransport = new ("COM3", 9600);
     
     public P2PClient()
     {
-        AppData.TerminalOutput.Add("P2PClient constructor called!");
+        AppData.TerminalOutput.Add($"Connecting to {AppData.Config.Name}...");
         _serialTransport.Connect();
-        _serialTransport.OnFrameReceived += (data) =>
+        _serialTransport.OnFrameReceived += bytes => 
         {
-            AppData.TerminalOutput.Add($"DEBUG OnFrameReceived action called: Frame received from UNO: {data.Length} bytes");
-            GotFrame(data);
+            GotFrame(bytes);
         };
         _serialTransport.StartReading();
-        AppData.TerminalOutput.Add("StartReading called!");
     }
     
     public ByteFrame Handshake(Contact contact)
@@ -43,7 +40,7 @@ public class P2PClient
         byte[] myPublicKey = ecdh.ExportSubjectPublicKeyInfo();
 
         var frame = BuildByteFrame(targetId: contact.Id, sourceId: AppData.Config.Id, data: myPublicKey,
-            id: Guid.NewGuid().ToString(), type: FrameType.HandshakeInit, connectionId: HANDESHAKE_ID);
+            id: Guid.NewGuid().ToString(), type: FrameType.HandshakeInit, connectionId: _handshakeId);
         
         AppData.TerminalOutput.Add($"Sending Handshake [id: {frame.Id}] request to {contact.Name}|{contact.Id}...\n");
         _frameQueue.Enqueue(frame);
@@ -76,7 +73,7 @@ public class P2PClient
             AppData.TerminalOutput.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
 
             var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: AppData.Config.Id, data: new byte[0],
-                id: Guid.NewGuid().ToString(), type: FrameType.OkReply, connectionId: HANDESHAKE_ID);
+                id: Guid.NewGuid().ToString(), type: FrameType.OkReply, connectionId: _handshakeId);
 
             AppData.TerminalOutput.Add(
                 $"Sending Ok reply [id: {reply.Id}] to {contact.Name}|{stringFrame.SourceId}...\n");
@@ -94,7 +91,7 @@ public class P2PClient
         catch (BrokenFrame b)
         {
             var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: AppData.Config.Id,
-                data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: HANDESHAKE_ID);
+                data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: _handshakeId);
 
             AppData.TerminalOutput.Add($"BrokenFrame Exception at GotHandshakeReply: {b.Message}\n");
 
@@ -157,7 +154,7 @@ public class P2PClient
             byte[] myPublicKey = ecdh.ExportSubjectPublicKeyInfo();
 
             //DEBUG
-            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId, data: myPublicKey, id: Guid.NewGuid().ToString(), type: FrameType.HandshakeReply, connectionId: HANDESHAKE_ID);
+            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId, data: myPublicKey, id: Guid.NewGuid().ToString(), type: FrameType.HandshakeReply, connectionId: _handshakeId);
 
             AppData.TerminalOutput.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
 
@@ -180,7 +177,7 @@ public class P2PClient
             AppData.TerminalOutput.Add($"BrokenFrame Exception at GotHandshakeInitRequest: \n {b.Message}\n");
 
             var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: AppData.Config.Id,
-                data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: HANDESHAKE_ID);
+                data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: _handshakeId);
             _frameQueue.Enqueue(reply);
             SendFrame();
             return reply;
@@ -270,7 +267,7 @@ public class P2PClient
         AppData.TerminalOutput.Add($"DEBUG: Frame data: {stringFrame.Data}\n");
     }
     
-    public void SendMessage(byte[] data, byte[] key)
+    public void SendMessage(byte[] data)
     {
         if (!Connection.IsConnected)
         {
@@ -280,7 +277,7 @@ public class P2PClient
             return;
         }
         
-        var encrypted = SecurityManager.Encrypt(data, key);
+        var encrypted = SecurityManager.Encrypt(data, Connection.SharedKey);
         var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: encrypted, id: Connection.ConnectionId, type: FrameType.Data, connectionId: Connection.ConnectionId);
         AppData.SentMessages.Add($"Message sent to {Connection.TargetName}|{Connection.TargetId}.");
         _frameQueue.Enqueue(frame);
@@ -298,11 +295,11 @@ public class P2PClient
         var sourceIdBytes = new List<byte>(Encoding.ASCII.GetBytes(sourceId));
         var dataBytes = data.ToList();
             
+        frame.ConnectionId = new List<byte>(Encoding.ASCII.GetBytes(connectionId));
         frame.Type = type;
         frame.TargetId = targetIdBytes;
         frame.SourceId = sourceIdBytes;
         frame.Data = dataBytes;
-        frame.ConnectionId = new List<byte>(Encoding.ASCII.GetBytes(connectionId));
         frame.CalculateChecksum();
         return frame;
     }
@@ -338,6 +335,13 @@ public class P2PClient
                 id: Connection.ConnectionId, type: FrameType.Disconnect, connectionId: Connection.ConnectionId);
             _frameQueue.Enqueue(frame);
             SendFrame();
+
+            var bytes = frame.Serialize().ToArray();
+
+            //reply -> OkReply
+            var reply = GotFrame(bytes).Serialize().ToArray();
+
+            GotFrame(reply);
             return true;
         }
         catch (ContactNotFound c)
@@ -421,7 +425,7 @@ public class P2PClient
         switch (frame.Type)
         {
             case FrameType.HandshakeInit:
-                AppData.TerminalOutput.Add($"DEBUG: Got Handshake Init request from UNO\n");
+                reply = GotHandshakeInitRequest(frame);
                 break;
             case FrameType.HandshakeReply:
                 reply = GotHandshakeReply(frame);

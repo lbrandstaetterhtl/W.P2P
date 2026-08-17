@@ -13,7 +13,7 @@
         <vm:MainViewModel/>
     </Window.DataContext>
     
-    <Grid RowDefinitions="Auto, *" x:Name="Root" x:DataType="vm:MainViewModel">
+    <Grid RowDefinitions="Auto, *" ColumnDefinitions="Auto, *" x:Name="Root" x:DataType="vm:MainViewModel">
         <Menu Grid.Row="0" Grid.Column="0">
             <MenuItem Header="Connect" ItemsSource="{Binding Contacts}">
                 <MenuItem.ItemTemplate>
@@ -25,17 +25,40 @@
             <MenuItem Header="Disconnect" Command="{Binding DisconnectCommand}"/>
         </Menu>
         
-        <Grid Grid.Row="1" Grid.Column="0" Margin="10" HorizontalAlignment="Stretch" >
+        <Grid Grid.Row="1" Grid.Column="0" Margin="10" HorizontalAlignment="Stretch" MaxWidth="700">
             <ScrollViewer x:Name="TerminalScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="Terminal Output:" Classes="Header"/>
                     <ItemsControl ItemsSource="{Binding TerminalOutput}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding}" Classes="TerminalOutput"/>
+                                <TextBlock Text="{Binding}" Classes="TerminalOutput" TextWrapping="Wrap"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+        
+        <Grid Grid.Row="1" Grid.Column="1" Margin="10" HorizontalAlignment="Stretch">
+            <ScrollViewer x:Name="ChatScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                <StackPanel>
+                    <TextBlock Text="Chat:" Classes="Header"/>
+                    <ItemsControl ItemsSource="{Binding ReceivedMessages}" HorizontalAlignment="Left">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Classes="Chat" TextWrapping="Wrap"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding SentMessages}" HorizontalAlignment="Right">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Classes="Chat"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBox x:Name="ChatInput" PlaceholderText="Type a message..." Text="{Binding MessageToSend, Mode=TwoWay}"/>
                 </StackPanel>
             </ScrollViewer>
         </Grid>

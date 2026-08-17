@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using W.P2P.Models;
@@ -13,7 +14,13 @@ public partial class MainViewModel : ObservableObject
     public P2PClient Client { get; set; }
     public ObservableCollection<string> TerminalOutput => AppData.TerminalOutput;
     
+    public ObservableCollection<string> ReceivedMessages => AppData.ReceivedMessages;
+    public ObservableCollection<string> SentMessages => AppData.SentMessages;
+    
     public ObservableCollection<Contact> Contacts => AppData.Config.IdMap;
+
+    [ObservableProperty] 
+    private string _messageToSend = "";
 
     public MainViewModel()
     {
@@ -43,5 +50,11 @@ public partial class MainViewModel : ObservableObject
         {
             AppData.TerminalOutput.Add("Failed to disconnect the selected contact.");
         }
+    }
+
+    public void SendMessage(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        Client.SendMessage(bytes);
     }
 }
