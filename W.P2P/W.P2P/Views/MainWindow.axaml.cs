@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using W.P2P.Models;
 using W.P2P.ViewModels;
@@ -12,6 +13,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _vm = DataContext as MainViewModel;
+
+        KeyBinding keyBinding = new();
+        keyBinding.Gesture = new KeyGesture(Key.Enter);
+        keyBinding.Command = _vm.SendMessageCommand;
+        ChatInput.KeyBindings.Add(keyBinding);
     }
 
     public void ConnectClick(object sender, RoutedEventArgs e)

@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace W.P2P.Models;
 
@@ -28,6 +29,18 @@ public class DataModels
         public string Id { get; set; }
         public string Name { get; set; }
         public byte[] Key  { get; set; }
+        public byte[] HardwareId { get; set; }
+        
+        public void SetHardwareId()
+        {
+            List<byte> hardwareId = new();
+            for (int i = 0; i <= 5; i++)
+            {
+                hardwareId.Add((byte)Id[i]);
+            }
+            
+            HardwareId = hardwareId.ToArray();
+        }
     }
     
     public class Connection
@@ -37,5 +50,12 @@ public class DataModels
         public string TargetId { get; set; }
         public string ConnectionId { get; set; }
         public bool IsConnected { get; set; }
+    }
+
+    public class ArduinoConfig
+    {
+        public byte[] TargetId { get; set; }
+        public byte[] MyId { get; set; }
+        public byte[] HandshakeId { get; set; }
     }
 }

@@ -17,19 +17,14 @@ public class P2PClient
     private readonly List<ByteFrame> _lastSentFrames = new();
 
     private readonly Queue<ByteFrame> _frameQueue = new();
-    private readonly SerialTransport _serialTransport = new("COM4", 9600);
+    private readonly SerialTransport _serialTransport = new("COM3", 9600);
     private readonly string _handshakeId = "00000000-0000-0000-0000-000000000000";
+    public ArduinoConfig ArduinoConfig = new();
     
     
     public P2PClient()
     {
-        AppData.TerminalOutput.Add($"Connecting to {AppData.Config.Name}...");
-        _serialTransport.Connect();
-        _serialTransport.OnFrameReceived += bytes => 
-        {
-            GotFrame(bytes);
-        };
-        _serialTransport.StartReading();
+        
     }
     
     public ByteFrame Handshake(Contact contact)
@@ -279,11 +274,9 @@ public class P2PClient
         
         var encrypted = SecurityManager.Encrypt(data, Connection.SharedKey);
         var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: encrypted, id: Connection.ConnectionId, type: FrameType.Data, connectionId: Connection.ConnectionId);
-        AppData.SentMessages.Add($"Message sent to {Connection.TargetName}|{Connection.TargetId}.");
+        AppData.TerminalOutput.Add($"Message sent to {Connection.TargetName}|{Connection.TargetId}.");
         _frameQueue.Enqueue(frame);
         SendFrame();
-        
-        GotFrame(frame.Serialize().ToArray());
     }
     
     public ByteFrame BuildByteFrame(string targetId, string sourceId, byte[] data, string id, FrameType type, string connectionId)
@@ -313,6 +306,16 @@ public class P2PClient
             return true;
         }
         
+        AppData.TerminalOutput.Add($"Connecting to Arduino...");
+        _serialTransport.ArduinoConfig = new ArduinoConfig();
+        _serialTransport.ArduinoConfig.TargetId = contact.HardwareId;
+        _serialTransport.ArduinoConfig.MyId = AppData.Config.HardwareId;
+        _serialTransport.ArduinoConfig.HandshakeId = Encoding.ASCII.GetBytes(_handshakeId);
+        ArduinoConfig = _serialTransport.ArduinoConfig;
+        _serialTransport.Connect();
+        _serialTransport.OnFrameReceived += GotFrame;
+        _serialTransport.StartReading();
+        
         var handshake = Handshake(contact).Serialize().ToArray();
         
         Connection = new Connection();
@@ -336,12 +339,6 @@ public class P2PClient
             _frameQueue.Enqueue(frame);
             SendFrame();
 
-            var bytes = frame.Serialize().ToArray();
-
-            //reply -> OkReply
-            var reply = GotFrame(bytes).Serialize().ToArray();
-
-            GotFrame(reply);
             return true;
         }
         catch (ContactNotFound c)
@@ -416,22 +413,25 @@ public class P2PClient
         }
     }
     
-    //DEBUG RETURNS REPLY TO SIMULATE
-    public ByteFrame GotFrame(byte[] data)
+    //DEBUG Doesn't call got methode
+    public void GotFrame(byte[] data)
     {
         var frame = ByteFrame.Deserialize(data.ToList());
-        var reply = new ByteFrame();
+        //var reply = new ByteFrame();
         
         switch (frame.Type)
         {
             case FrameType.HandshakeInit:
-                reply = GotHandshakeInitRequest(frame);
+                //reply = GotHandshakeInitRequest(frame);
+                AppData.TerminalOutput.Add($"DEBUG HandshakeInit: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             case FrameType.HandshakeReply:
-                reply = GotHandshakeReply(frame);
+                //reply = GotHandshakeReply(frame);
+                AppData.TerminalOutput.Add($"DEBUG HandshakeReply: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             case FrameType.Data:
-                reply = GotMessage(frame, out _);
+                //reply = GotMessage(frame, out _);
+                AppData.TerminalOutput.Add($"DEBUG Message: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             case FrameType.OkReply:
                 GotOkReply(frame);
@@ -440,13 +440,12 @@ public class P2PClient
                 GotErrorReply(frame);
                 break;
             case FrameType.Disconnect:
-                reply = GotDisconnectRequest(frame);
+                //reply = GotDisconnectRequest(frame);
+                AppData.TerminalOutput.Add($"DEBUG Disconnect: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             default:
                 AppData.TerminalOutput.Add($"Error: Unknown frame type {frame.Type} received.\n");
                 break;
         }
-        
-        return reply;
     }
 }

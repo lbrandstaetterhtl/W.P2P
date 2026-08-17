@@ -52,9 +52,12 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    public void SendMessage(string text)
+    [RelayCommand]
+    public void SendMessage()
     {
-        var bytes = Encoding.UTF8.GetBytes(text);
+        var bytes = Encoding.UTF8.GetBytes(MessageToSend);
         Client.SendMessage(bytes);
+        
+        AppData.SentMessages.Add($"\"{MessageToSend}\" - you");
     }
 }

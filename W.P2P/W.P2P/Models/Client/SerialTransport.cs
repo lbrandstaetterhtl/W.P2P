@@ -13,6 +13,7 @@ public class SerialTransport
     private readonly SerialPort _serialPort;
     private bool _isReading = false;
     private Thread _readingThread;
+    public DataModels.ArduinoConfig ArduinoConfig { get; set; }
     public event Action<byte[]> OnFrameReceived;
     
     public SerialTransport(string portName, int baudRate)
@@ -29,6 +30,7 @@ public class SerialTransport
                 _serialPort.Open();
                 AppData.TerminalOutput.Add(
                     $"Serial port opened: {_serialPort.PortName} at {_serialPort.BaudRate} baud.");
+                SendConfig();
             }
             else
             {
@@ -170,6 +172,21 @@ public class SerialTransport
             {
                 AppData.TerminalOutput.Add($"Error in reading thread: {ex.Message}");
             });
+        }
+    }
+    
+    private void SendConfig()
+    {
+        if (_serialPort.IsOpen)
+        {
+            List<byte> toSend = new();
+            
+            toSend.Add(0xFF);
+            toSend.AddRange(ArduinoConfig.TargetId);
+            toSend.AddRange(ArduinoConfig.MyId);
+            toSend.AddRange(ArduinoConfig.HandshakeId);
+            
+            _serialPort.Write(toSend.ToArray(), 0, toSend.Count);
         }
     }
 }

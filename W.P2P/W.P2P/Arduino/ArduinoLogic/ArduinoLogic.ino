@@ -1,5 +1,9 @@
 int HEADER_LENGTH = 145;
 byte SYNC_BYTE = 0xAA;
+byte CONFIG_BYTE = 0xFF;
+uint64_t targetId;
+uint64_t myId;
+byte handshakeId[36];
 
 void setup() {
   Serial.begin(9600);
@@ -16,6 +20,12 @@ void loop() {
   byte openSync;
   if (Serial.readBytes(&openSync, 1) != 1) return;
   totalLength++;
+
+  if (openSync == CONFIG_BYTE)
+  {
+    desirializeConfig();
+    return;
+  }
 
   if (openSync != SYNC_BYTE) return;
 
@@ -67,4 +77,25 @@ void loop() {
   result[pos] = endSync;
 
   Serial.write(result, totalLength);
+}
+
+void desirializeConfig()
+{
+  targetId = 0;
+  myId = 0;
+  byte targetIdGot[5];
+  if (Serial.readBytes(targetIdGot, sizeof(targetIdGot)) != 1) return;
+
+  for (int i = 0; i < 5; i++) {
+  targetId |= (uint64_t)targetIdGot[i] << (8 * i); 
+  }
+
+  byte myIdGot[5];
+  if (Serial.readBytes(myIdGot, sizeof(myIdGot)) != 1) return;
+
+  for (int i = 0; i < 5; i++) {
+  myId |= (uint64_t)myIdGot[i] << (8 * i); 
+  }
+
+  if (Serial.readBytes(handshakeId, sizeof(handshakeId)) != 1) return;
 }

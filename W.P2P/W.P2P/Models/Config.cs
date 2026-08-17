@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
@@ -12,6 +13,7 @@ public class Config
 
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
+    public byte[] HardwareId { get; set; }
 
     public ObservableCollection<DataModels.Contact> IdMap { get; set; } = new ();
 
@@ -21,6 +23,7 @@ public class Config
         contact.Id = id;
         contact.Name = name;
         contact.Key = null;
+        contact.SetHardwareId();
         IdMap.Add(contact);
     }
 
@@ -28,6 +31,13 @@ public class Config
     {
         Id = Guid.NewGuid().ToString();
         Name = Environment.MachineName;
+
+        List<byte> hardwareId = new();
+        for (int i = 0; i <= 5; i++)
+        {
+            hardwareId.Add((byte)Id[i]);
+        }
+        HardwareId = hardwareId.ToArray();
 
         SaveIdInMap(Id, Name);
     }
@@ -72,6 +82,7 @@ public class Config
         config.IdMap = IdMap;
         config.Id = Id;
         config.Name = Name;
+        config.HardwareId = HardwareId;
         var json = JsonSerializer.Serialize(config);
         File.WriteAllText(ConfigFilePath, json);
     }
