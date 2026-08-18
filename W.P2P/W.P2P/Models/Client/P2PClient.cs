@@ -27,6 +27,11 @@ public class P2PClient
     {
         AppData.TerminalOutput.Add($"Connecting to Arduino...");
         _serialTransport.Connect();
+        var arduinoConfig = new ArduinoConfig();
+        arduinoConfig.TargetId = new byte[5];
+        arduinoConfig.MyId = AppData.Config.HardwareId;
+        _serialTransport.ArduinoConfig = arduinoConfig;
+        _serialTransport.SendConfig();
         _serialTransport.OnFrameReceived += GotFrame;
         _serialTransport.StartReading();
     }
