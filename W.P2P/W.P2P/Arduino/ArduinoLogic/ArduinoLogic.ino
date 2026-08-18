@@ -69,6 +69,8 @@ void setup() {
   Serial.begin(9600);
   Serial.setTimeout(2000);
 
+  logMsg("SETUP RUNNING");
+
   if (!radio.begin()) {
     // NICHT still hängen bleiben - weiter loggen, damit man's sieht
     while (true) {
@@ -84,6 +86,7 @@ void setup() {
   radio.setAutoAck(1, false);
   radio.startListening();
 
+  delay(1000);
   logMsg("Setup fertig, lausche auf Broadcast");
 }
 
