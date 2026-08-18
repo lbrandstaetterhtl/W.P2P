@@ -27,15 +27,12 @@ public class P2PClient
     public P2PClient()
     {
         AppData.TerminalOutput.Add($"Connecting to Arduino...");
-        _serialTransport.Connect();
-        var arduinoConfig = new ArduinoConfig();
-        arduinoConfig.TargetId = new byte[5];
-        arduinoConfig.MyId = broadcast;
-        _serialTransport.ArduinoConfig = arduinoConfig;
-        _serialTransport.SendConfig();
         _serialTransport.OnFrameReceived += GotFrame;
+        _serialTransport.Connect();
         _serialTransport.StartReading();
+        // KEINE Broadcast-Config hier - Broadcast-Pipe ist im Arduino-setup() schon offen
     }
+
     
     public ByteFrame Handshake(Contact contact)
     {
@@ -315,16 +312,16 @@ public class P2PClient
             AppData.TerminalOutput.Add($"Already connected to {Connection.TargetName}|{Connection.TargetId}. Disconnect first.\n");
             return true;
         }
-        
+    
         _serialTransport.ArduinoConfig = new ArduinoConfig();
         _serialTransport.ArduinoConfig.TargetId = contact.HardwareId;
         _serialTransport.ArduinoConfig.MyId = AppData.Config.HardwareId;
         ArduinoConfig = _serialTransport.ArduinoConfig;
         _serialTransport.SendConfig();
-        
-        Thread.Sleep(1500);  
+    
+        Thread.Sleep(500);
         Handshake(contact);
-        
+    
         Connection = new Connection();
         Connection.TargetId = contact.Id;
         Connection.ConnectionId = Guid.NewGuid().ToString();

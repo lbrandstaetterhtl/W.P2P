@@ -35,8 +35,6 @@ int  frameLen = 0;
 byte header[HEADER_LENGTH];
 byte data[255];
 
-// ---- Logging ----
-
 void logMsg(const char* msg) {
   int len = strlen(msg);
   if (len > 255) len = 255;
@@ -56,8 +54,6 @@ void logInt(const char* label, long value) {
   snprintf(buf, sizeof(buf), "%s%ld", label, value);
   logMsg(buf);
 }
-
-// ---- Setup / Loop ----
 
 void setup() {
   Serial.begin(9600);
@@ -98,8 +94,6 @@ void loop() {
   if (Serial.available() >= 1) handleSerial();
   receiveFromRadio();
 }
-
-// ---- PC -> Funk ----
 
 void sendFromParts(byte sync, const byte* hdr, byte dataLen, const byte* dat,
                    byte crc, byte endSync, int totalLength, bool broadcast) {
@@ -212,25 +206,21 @@ void handleSerial() {
   sendFromParts(openSync, header, dataLength, data, crc, endSync, totalLength, broadcast);
 }
 
-// ---- Funk -> PC ----
-
 void receiveFromRadio() {
   uint8_t pipeNum;
   if (!radio.available(&pipeNum)) return;
 
   uint8_t len = radio.getDynamicPayloadSize();
 
-  // DEBUG: alles loggen, auch Rauschen (Laenge 0 oder >32)
-  // Nach dem Test wieder rausnehmen und nur "sinnvolle" Pakete loggen.
-  char buf[64];
-  snprintf(buf, sizeof(buf), "DEBUG Funk rein: Pipe %d, Laenge %d", pipeNum, len);
-  logMsg(buf);
-
   if (len == 0 || len > 32) {
     byte dump[32];
     radio.read(dump, 32);
-    return;
+    return;   // Rauschen still verwerfen
   }
+
+  char buf[64];
+  snprintf(buf, sizeof(buf), "Funk rein: Pipe %d, %d Byte", pipeNum, len);
+  logMsg(buf);
 
   if (frameLen + len > MAX_FRAME) {
     logMsg("-> Puffer-Ueberlauf, reset");
@@ -284,8 +274,6 @@ void flushCompleteFrames(uint8_t pipeNum) {
     frameLen = leftover;
   }
 }
-
-// ---- Config ----
 
 void desirializeConfig() {
   targetId = 0;
