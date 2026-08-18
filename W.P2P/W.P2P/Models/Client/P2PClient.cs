@@ -64,6 +64,13 @@ public class P2PClient
                           throw new ContactNotFound($"Contact with ID {stringFrame.SourceId} not found.");
 
             contact.Key = SecurityManager.DeriveKey(ecdh, theirKey);
+            
+            Connection = new Connection();
+            Connection.TargetId = contact.Id;
+            Connection.ConnectionId = stringFrame.Id;
+            Connection.IsConnected = true;
+            Connection.TargetName = contact.Name;
+            Connection.SharedKey = contact.Key;
 
             Handshakes.Remove(stringFrame.SourceId);
             ecdh.Dispose();
@@ -145,10 +152,23 @@ public class P2PClient
             var contact = AppData.Config.IdMap.FirstOrDefault(x => x.Id == stringFrame.SourceId) ??
                           throw new ContactNotFound($"No contact found for {stringFrame.SourceId}.");
             contact.Key = SecurityManager.DeriveKey(ecdh, theirPublicKey);
+            
+            Connection = new Connection();
+            Connection.TargetId = contact.Id;
+            Connection.ConnectionId = Guid.NewGuid().ToString();
+            Connection.IsConnected = true;
+            Connection.TargetName = contact.Name;
+            Connection.SharedKey = contact.Key;
+            
+            _serialTransport.ArduinoConfig = new ArduinoConfig();
+            _serialTransport.ArduinoConfig.TargetId = contact.HardwareId;
+            _serialTransport.ArduinoConfig.MyId = AppData.Config.HardwareId;
+            ArduinoConfig = _serialTransport.ArduinoConfig;
+            _serialTransport.SendConfig();
 
             byte[] myPublicKey = ecdh.ExportSubjectPublicKeyInfo();
 
-            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: AppData.Config.Id, data: myPublicKey, id: Guid.NewGuid().ToString(), type: FrameType.HandshakeReply, connectionId: _handshakeId);
+            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: AppData.Config.Id, data: myPublicKey, id: Connection.ConnectionId, type: FrameType.HandshakeReply, connectionId: _handshakeId);
 
             SafeLog.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
             SafeLog.Add($"Sending Handshake reply [id: {reply.Id}] to {contact.Name}|{stringFrame.SourceId}...\n");
@@ -304,13 +324,7 @@ public class P2PClient
     
         Thread.Sleep(500);
         Handshake(contact);
-    
-        Connection = new Connection();
-        Connection.TargetId = contact.Id;
-        Connection.ConnectionId = Guid.NewGuid().ToString();
-        Connection.IsConnected = true;
-        Connection.TargetName = contact.Name;
-        Connection.SharedKey = contact.Key;
+        
         return true;
     }
 

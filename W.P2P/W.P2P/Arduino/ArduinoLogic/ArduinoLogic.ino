@@ -8,16 +8,20 @@ const byte LOG_BYTE      = 0xEE;
 const int  MAX_FRAME     = 260;
 const int  MAX_DATA_LENGTH = 128;
 
+// Chunk-Header: 2 Byte (chunkNum + totalChunks), dann 30 Byte Nutzdaten
+const int  CHUNK_HEADER_SIZE = 2;
+const int  CHUNK_PAYLOAD     = 30;
+const int  MAX_CHUNKS        = (MAX_FRAME + CHUNK_PAYLOAD - 1) / CHUNK_PAYLOAD;   // ~14
+
 const uint64_t ADDR_PREFIX    = 0xC5E8F0F0C5LL;
 const uint64_t BROADCAST_ADDR = ADDR_PREFIX;
 
-const byte FT_HANDSHAKE_INIT = 0x02;
+const byte FT_HANDSHAKE_INIT  = 0x02;
 const byte FT_HANDSHAKE_REPLY = 0x03;
 
 const int TYPE_OFFSET_IN_HEADER   = 36;
 const int CONNID_OFFSET_IN_HEADER = 0;
 
-// PROGMEM: liegt im Flash, nicht im RAM (spart 36 Byte)
 const byte HANDSHAKE_ID[36] PROGMEM = {
   '0','0','0','0','0','0','0','0','-',
   '0','0','0','0','-',
@@ -34,11 +38,14 @@ bool setupRan = false;
 RF24 radio(9, 10);
 
 byte frameBuf[MAX_FRAME];
-int  frameLen = 0;
+int  expectedTotalChunks = 0;
+byte receivedMask[MAX_CHUNKS];   // 1 = empfangen, 0 = fehlt
+int  lastChunkLen = 0;           // Groesse des letzten Chunks (kann < 30 sein)
+
 byte header[HEADER_LENGTH];
 byte data[MAX_DATA_LENGTH];
 
-// ---- Logging (Strings aus Flash lesen) ----
+// ---- Logging ----
 
 void logMsgF(const __FlashStringHelper* msg) {
   const char* p = (const char*)msg;
@@ -46,12 +53,9 @@ void logMsgF(const __FlashStringHelper* msg) {
   if (len > 255) len = 255;
   Serial.write(LOG_BYTE);
   Serial.write((byte)len);
-  for (int i = 0; i < len; i++) {
-    Serial.write(pgm_read_byte(p + i));
-  }
+  for (int i = 0; i < len; i++) Serial.write(pgm_read_byte(p + i));
 }
 
-// Fuer dynamisch zusammengebaute Strings (bleiben im RAM, aber nur kurz)
 void logMsgBuf(const char* buf) {
   int len = strlen(buf);
   if (len > 255) len = 255;
@@ -78,6 +82,14 @@ void logInt(const __FlashStringHelper* label, long value) {
   logMsgBuf(buf);
 }
 
+// ---- Reassembly-Status zuruecksetzen ----
+
+void resetReassembly() {
+  expectedTotalChunks = 0;
+  lastChunkLen = 0;
+  memset(receivedMask, 0, sizeof(receivedMask));
+}
+
 // ---- Setup / Loop ----
 
 void setup() {
@@ -102,6 +114,7 @@ void setup() {
   radio.setAutoAck(1, false);
   radio.startListening();
 
+  resetReassembly();
   logMsgF(F("Setup fertig, lausche auf Broadcast"));
   setupRan = true;
 }
@@ -127,43 +140,57 @@ void sendFromParts(byte sync, const byte* hdr, byte dataLen, const byte* dat,
   radio.stopListening();
   radio.openWritingPipe(broadcast ? BROADCAST_ADDR : targetId);
 
-  logInt(F("Sende Bytes gesamt: "), totalLength);
+  // Wie viele Chunks brauchen wir?
+  int totalChunks = (totalLength + CHUNK_PAYLOAD - 1) / CHUNK_PAYLOAD;
 
-  byte chunk[32];
-  int chunkPos = 0;
+  logInt(F("Sende Bytes: "), totalLength);
+  logInt(F("Chunks total: "), totalChunks);
+
+  byte chunk[32];   // 2 Byte Header + 30 Byte Payload
   int chunkNum = 0;
   int failCount = 0;
 
-  #define WRITE_BYTE(b) do {                              \
-      chunk[chunkPos++] = (b);                            \
-      if (chunkPos == 32) {                               \
-        if (!radio.write(chunk, 32, broadcast)) failCount++; \
-        chunkPos = 0;                                     \
-        chunkNum++;                                       \
-      }                                                   \
-    } while (0)
+  // Wir muessen die Bytes in den Frame in einer virtuellen Sequenz behandeln.
+  // Statt einen 260-Byte-Buffer zu bauen, iterieren wir Byte fuer Byte
+  // und fuellen jeden Chunk-Payload einzeln.
 
-  WRITE_BYTE(sync);
-  for (int i = 0; i < HEADER_LENGTH; i++) WRITE_BYTE(hdr[i]);
-  WRITE_BYTE(dataLen);
-  for (int i = 0; i < dataLen; i++) WRITE_BYTE(dat[i]);
-  WRITE_BYTE(crc);
-  WRITE_BYTE(endSync);
+  int frameIdx = 0;   // wo im virtuellen Frame sind wir
 
-  if (chunkPos > 0) {
-    if (!radio.write(chunk, chunkPos, broadcast)) failCount++;
+  while (chunkNum < totalChunks) {
+    chunk[0] = chunkNum;
+    chunk[1] = totalChunks;
+
+    int payloadBytes = 0;
+    while (payloadBytes < CHUNK_PAYLOAD && frameIdx < totalLength) {
+      byte b;
+      // Bestimme Byte an frameIdx-Position im virtuellen Frame
+      if (frameIdx == 0) b = sync;
+      else if (frameIdx <= HEADER_LENGTH) b = hdr[frameIdx - 1];
+      else if (frameIdx == 1 + HEADER_LENGTH) b = dataLen;
+      else if (frameIdx <= 1 + HEADER_LENGTH + dataLen) b = dat[frameIdx - HEADER_LENGTH - 2];
+      else if (frameIdx == 1 + HEADER_LENGTH + dataLen + 1) b = crc;
+      else b = endSync;
+
+      chunk[CHUNK_HEADER_SIZE + payloadBytes] = b;
+      payloadBytes++;
+      frameIdx++;
+    }
+
+    int chunkSize = CHUNK_HEADER_SIZE + payloadBytes;
+    if (!radio.write(chunk, chunkSize, broadcast)) failCount++;
     chunkNum++;
-  }
 
-  #undef WRITE_BYTE
+    // kleine Pause zwischen Chunks - hilft dem Empfaenger, alle einzusammeln
+    delayMicroseconds(500);
+  }
 
   radio.startListening();
 
   char buf[48];
   if (broadcast) {
-    snprintf_P(buf, sizeof(buf), PSTR("%d Chunks broadcast"), chunkNum);
+    snprintf_P(buf, sizeof(buf), PSTR("%d Chunks broadcast"), totalChunks);
   } else {
-    snprintf_P(buf, sizeof(buf), PSTR("%d Chunks, %d ohne ack"), chunkNum, failCount);
+    snprintf_P(buf, sizeof(buf), PSTR("%d Chunks, %d ohne ack"), totalChunks, failCount);
   }
   logMsgBuf(buf);
 }
@@ -203,7 +230,6 @@ void handleSerial() {
 
   if (dataLength > MAX_DATA_LENGTH) {
     logInt(F("Data zu gross: "), dataLength);
-    // Bytes trotzdem aus dem Puffer lesen, sonst desynct
     for (int i = 0; i < dataLength; i++) {
       byte tmp;
       Serial.readBytes(&tmp, 1);
@@ -232,9 +258,9 @@ void handleSerial() {
   }
 
   byte frameType = header[TYPE_OFFSET_IN_HEADER];
-logHex(F("FrameType: "), frameType);
-bool broadcast = (frameType == FT_HANDSHAKE_INIT || frameType == FT_HANDSHAKE_REPLY);
-logMsgF(broadcast ? F("-> Broadcast-Versand") : F("-> privater Versand"));
+  logHex(F("FrameType: "), frameType);
+  bool broadcast = (frameType == FT_HANDSHAKE_INIT || frameType == FT_HANDSHAKE_REPLY);
+  logMsgF(broadcast ? F("-> Broadcast") : F("-> privat"));
 
   sendFromParts(openSync, header, dataLength, data, crc, endSync, totalLength, broadcast);
 }
@@ -247,67 +273,94 @@ void receiveFromRadio() {
 
   uint8_t len = radio.getDynamicPayloadSize();
 
-  if (len == 0 || len > 32) {
+  if (len < CHUNK_HEADER_SIZE || len > 32) {
     byte dump[32];
     radio.read(dump, 32);
+    return;   // Rauschen still verwerfen
+  }
+
+  byte chunk[32];
+  radio.read(chunk, len);
+
+  byte chunkNum = chunk[0];
+  byte totalChunks = chunk[1];
+  int payloadLen = len - CHUNK_HEADER_SIZE;
+
+  char buf[64];
+  snprintf_P(buf, sizeof(buf), PSTR("Chunk %d/%d, %d B"), chunkNum, totalChunks, payloadLen);
+  logMsgBuf(buf);
+
+  // Sanity checks
+  if (totalChunks == 0 || totalChunks > MAX_CHUNKS) {
+    logMsgF(F("Chunk ignoriert: totalChunks unplausibel"));
+    return;
+  }
+  if (chunkNum >= totalChunks) {
+    logMsgF(F("Chunk ignoriert: chunkNum >= total"));
     return;
   }
 
-  char buf[48];
-  snprintf_P(buf, sizeof(buf), PSTR("Funk rein: Pipe %d, %d B"), pipeNum, len);
-  logMsgBuf(buf);
+  // Wenn wir gerade einen anderen Frame sammeln, resetten
+  if (expectedTotalChunks != 0 && expectedTotalChunks != totalChunks) {
+    logMsgF(F("Neuer Frame - Reassembly-Reset"));
+    resetReassembly();
+  }
+  expectedTotalChunks = totalChunks;
 
-  if (frameLen + len > MAX_FRAME) {
-    logMsgF(F("-> Puffer voll, reset"));
-    frameLen = 0;
+  // Chunk an richtige Position im Buffer schreiben
+  int offset = chunkNum * CHUNK_PAYLOAD;
+  if (offset + payloadLen > MAX_FRAME) {
+    logMsgF(F("Chunk wuerde Puffer sprengen"));
+    resetReassembly();
+    return;
   }
 
-  radio.read(&frameBuf[frameLen], len);
-  frameLen += len;
-  logInt(F("-> frameLen: "), frameLen);
+  memcpy(&frameBuf[offset], &chunk[CHUNK_HEADER_SIZE], payloadLen);
+  receivedMask[chunkNum] = 1;
 
-  flushCompleteFrames(pipeNum);
-}
-
-void flushCompleteFrames(uint8_t pipeNum) {
-  while (true) {
-    if (frameLen < 1) return;
-
-    if (frameBuf[0] != SYNC_BYTE) {
-      logHex(F("Reass: kein Sync: "), frameBuf[0]);
-      frameLen = 0;
-      return;
-    }
-
-    const int dataLenOffset = 1 + HEADER_LENGTH;
-    if (frameLen < dataLenOffset + 1) return;
-
-    int total = 149 + frameBuf[dataLenOffset];
-    if (frameLen < total) return;
-
-    if (frameBuf[total - 1] != SYNC_BYTE) {
-      logHex(F("Reass: endSync: "), frameBuf[total - 1]);
-      frameLen = 0;
-      return;
-    }
-
-    bool pass = true;
-    if (pipeNum == 1) {
-      if (memcmp_P(&frameBuf[1 + CONNID_OFFSET_IN_HEADER], HANDSHAKE_ID, 36) != 0) {
-        pass = false;
-        logMsgF(F("Broadcast: ConnId falsch"));
-      }
-    }
-
-    if (pass) {
-      logInt(F("Frame komplett: "), total);
-      Serial.write(frameBuf, total);
-    }
-
-    int leftover = frameLen - total;
-    if (leftover > 0) memmove(frameBuf, &frameBuf[total], leftover);
-    frameLen = leftover;
+  // Letzter Chunk merkt sich seine Groesse (fuer Frame-Ende)
+  if (chunkNum == totalChunks - 1) {
+    lastChunkLen = payloadLen;
   }
+
+  // Alle Chunks da?
+  bool complete = true;
+  for (int i = 0; i < expectedTotalChunks; i++) {
+    if (!receivedMask[i]) { complete = false; break; }
+  }
+
+  if (!complete) return;
+
+  // Kompletter Frame - Laenge berechnen
+  int totalLength = (expectedTotalChunks - 1) * CHUNK_PAYLOAD + lastChunkLen;
+
+  // Sanity: Frame muss mit SYNC anfangen und aufhoeren
+  if (frameBuf[0] != SYNC_BYTE) {
+    logHex(F("Frame: Byte 0 kein Sync: "), frameBuf[0]);
+    resetReassembly();
+    return;
+  }
+  if (frameBuf[totalLength - 1] != SYNC_BYTE) {
+    logHex(F("Frame: endSync falsch: "), frameBuf[totalLength - 1]);
+    resetReassembly();
+    return;
+  }
+
+  // Bei Broadcast: HandshakeId pruefen
+  bool pass = true;
+  if (pipeNum == 1) {
+    if (memcmp_P(&frameBuf[1 + CONNID_OFFSET_IN_HEADER], HANDSHAKE_ID, 36) != 0) {
+      pass = false;
+      logMsgF(F("Broadcast: ConnId falsch"));
+    }
+  }
+
+  if (pass) {
+    logInt(F("Frame komplett: "), totalLength);
+    Serial.write(frameBuf, totalLength);
+  }
+
+  resetReassembly();
 }
 
 // ---- Config ----
