@@ -20,6 +20,7 @@ public class P2PClient
     private readonly Queue<ByteFrame> _frameQueue = new();
     private readonly SerialTransport _serialTransport = new("COM4", 9600);
     private readonly string _handshakeId = "00000000-0000-0000-0000-000000000000";
+    private readonly byte[] broadcast = { 0xC5, 0xF0, 0xF0, 0xE8, 0xC5 };
     public ArduinoConfig ArduinoConfig = new();
     
     
@@ -29,7 +30,7 @@ public class P2PClient
         _serialTransport.Connect();
         var arduinoConfig = new ArduinoConfig();
         arduinoConfig.TargetId = new byte[5];
-        arduinoConfig.MyId = AppData.Config.HardwareId;
+        arduinoConfig.MyId = broadcast;
         _serialTransport.ArduinoConfig = arduinoConfig;
         _serialTransport.SendConfig();
         _serialTransport.OnFrameReceived += GotFrame;

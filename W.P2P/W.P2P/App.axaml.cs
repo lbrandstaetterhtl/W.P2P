@@ -17,14 +17,14 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        AppData.Config.LoadConfig();
+        
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindow();
 
             desktop.Exit += OnExit;
         }
-        
-        AppData.Config.LoadConfig();
 
         base.OnFrameworkInitializationCompleted();
     }
