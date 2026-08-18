@@ -57,6 +57,7 @@ public class DataModels
     {
         public byte[] TargetId { get; set; }
         public byte[] MyId { get; set; }
+        public bool configured { get; set; } = false;
     }
     
     public static class SafeLog

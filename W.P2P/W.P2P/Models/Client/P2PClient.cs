@@ -18,7 +18,7 @@ public class P2PClient
     private readonly List<ByteFrame> _lastSentFrames = new();
 
     private readonly Queue<ByteFrame> _frameQueue = new();
-    private readonly SerialTransport _serialTransport = new("COM4", 9600);
+    private readonly SerialTransport _serialTransport = new("COM3", 9600);
     private readonly string _handshakeId = "00000000-0000-0000-0000-000000000000";
     public ArduinoConfig ArduinoConfig = new();
     
@@ -32,7 +32,7 @@ public class P2PClient
     }
 
     
-    public ByteFrame Handshake(Contact contact)
+    public void Handshake(Contact contact)
     {
         var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
         Handshakes.Add(contact.Id, ecdh);
@@ -45,11 +45,9 @@ public class P2PClient
         SafeLog.Add($"Sending Handshake [id: {frame.Id}] request to {contact.Name}|{contact.Id}...\n");
         _frameQueue.Enqueue(frame);
         SendFrame();
-        
-        return frame;
     }
 
-    public ByteFrame GotHandshakeReply(ByteFrame frame)
+    public void GotHandshakeReply(ByteFrame frame)
     {
         try
         {
@@ -84,12 +82,10 @@ public class P2PClient
             _frameQueue.Enqueue(reply);
             SendFrame();
 
-            return reply;
         }
         catch (ContactNotFound c)
         {
             SafeLog.Add($"ContactNotFound Exception at GotHandshakeReply: {c.Message}\n");
-            return null;
         }
         catch (BrokenFrame b)
         {
@@ -100,18 +96,14 @@ public class P2PClient
 
             _frameQueue.Enqueue(reply);
             SendFrame();
-
-            return reply;
         }
         catch (HandshakeNotFound h)
         {
             SafeLog.Add($"HandshakeNotFound Exception at GotHandshakeReply: {h.Message}\n");
-            return null;
         }
         catch (Exception e)
         {
             SafeLog.Add($"Unexpected Exception at GotHandshakeReply: \n {e.Message}\n");
-            return null;
         }
     }
 
@@ -139,7 +131,7 @@ public class P2PClient
         }
     }
     
-    public ByteFrame GotHandshakeInitRequest(ByteFrame frame)
+    public void GotHandshakeInitRequest(ByteFrame frame)
     {
         try
         {
@@ -162,6 +154,7 @@ public class P2PClient
             _serialTransport.ArduinoConfig = new ArduinoConfig();
             _serialTransport.ArduinoConfig.TargetId = contact.HardwareId;
             _serialTransport.ArduinoConfig.MyId = AppData.Config.HardwareId;
+            _serialTransport.ArduinoConfig.configured = true;
             ArduinoConfig = _serialTransport.ArduinoConfig;
             _serialTransport.SendConfig();
 
@@ -176,12 +169,10 @@ public class P2PClient
 
             _frameQueue.Enqueue(reply);
             SendFrame();
-            return reply;
         }
         catch (ContactNotFound c)
         {
             SafeLog.Add($"ContactNotFound Exception at GotHandshakeInitRequest: \n {c.Message}\n");
-            return null;
         }
         catch (BrokenFrame b)
         {
@@ -191,16 +182,14 @@ public class P2PClient
                 data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: _handshakeId);
             _frameQueue.Enqueue(reply);
             SendFrame();
-            return reply;
         }
         catch (Exception e)
         {
             SafeLog.Add($"Unexpected Exception at GotHandshakeInitRequest: \n {e.Message}\n");
-            return null;
         }
     }
 
-    public ByteFrame GotMessage(ByteFrame frame, out StringFrame stringFrame)
+    public void GotMessage(ByteFrame frame, out StringFrame stringFrame)
     {
         try
         {
@@ -215,13 +204,11 @@ public class P2PClient
 
             _frameQueue.Enqueue(reply);
             SendFrame();
-            return reply;
         }
         catch (ContactNotFound c)
         {
             SafeLog.Add($"ContactNotFound Exception: {c.Message}\n");
             stringFrame = null;
-            return null;
         }
         catch (BrokenFrame b)
         {
@@ -231,13 +218,11 @@ public class P2PClient
             stringFrame = null;
             _frameQueue.Enqueue(reply);
             SendFrame();
-            return reply;
         }
         catch (Exception e)
         {
             SafeLog.Add($"Unexpected Exception: {e.Message}\n");
             stringFrame = null;
-            return null;
         }
     }
 
@@ -318,6 +303,7 @@ public class P2PClient
         _serialTransport.ArduinoConfig = new ArduinoConfig();
         _serialTransport.ArduinoConfig.TargetId = contact.HardwareId;
         _serialTransport.ArduinoConfig.MyId = AppData.Config.HardwareId;
+        _serialTransport.ArduinoConfig.configured = false;
         ArduinoConfig = _serialTransport.ArduinoConfig;
         _serialTransport.SendConfig();
     
@@ -337,6 +323,9 @@ public class P2PClient
                 id: Connection.ConnectionId, type: FrameType.Disconnect, connectionId: Connection.ConnectionId);
             _frameQueue.Enqueue(frame);
             SendFrame();
+            
+            _serialTransport.ArduinoConfig = new ArduinoConfig();
+            _serialTransport.SendConfig();
 
             return true;
         }
@@ -363,7 +352,7 @@ public class P2PClient
         SafeLog.Add($"Got Ok Reply from {Connection.TargetName}|{Connection.TargetId} for frame {stringFrame.Id}\n");
     }
 
-    public ByteFrame GotDisconnectRequest(ByteFrame frame)
+    public void GotDisconnectRequest(ByteFrame frame)
     {
         try
         {
@@ -384,12 +373,10 @@ public class P2PClient
 
             _frameQueue.Enqueue(reply);
             SendFrame();
-            return reply;
         }
         catch (ContactNotFound c)
         {
             SafeLog.Add($"Error: {c.Message}\n");
-            return null;
         }
         catch (BrokenFrame b)
         {
@@ -400,7 +387,6 @@ public class P2PClient
             
             _frameQueue.Enqueue(reply);
             SendFrame();
-            return reply;
         }
     }
     

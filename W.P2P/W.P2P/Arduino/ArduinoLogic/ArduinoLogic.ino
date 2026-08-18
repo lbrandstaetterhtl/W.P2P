@@ -383,10 +383,26 @@ void desirializeConfig() {
   }
   for (int i = 0; i < 5; i++) myId |= (uint64_t)myIdGot[i] << (8 * i);
 
-  radio.openReadingPipe(2, myId);
-  radio.setAutoAck(2, true);
+  byte configuredByte;
+  if (Serial.readBytes(&configuredByte, 1) != 1) {
+    logMsgF(F("Config: configuredByte fehlt"));
+    return;
+  }
 
-  configured = true;
+  configured = (configuredByte == 0x001);
+
+  if (configured) {
+    radio.openReadingPipe(2, myId);
+    radio.setAutoAck(2, true);
+    logMsgF(F("Private connected"));
+  }
+  else
+  {
+    radio.openReadingPipe(1, BROADCAST_ADDR);
+    radio.setAutoAck(1, false);
+    logMsgF(F("Lobby connected"));
+  }
+
   radio.startListening();
 
   logMsgF(F("Config OK"));

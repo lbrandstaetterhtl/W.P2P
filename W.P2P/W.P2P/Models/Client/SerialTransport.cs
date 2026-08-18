@@ -202,6 +202,7 @@ public class SerialTransport
         toSend.Add(0xFF);
         toSend.AddRange(ArduinoConfig.TargetId);
         toSend.AddRange(ArduinoConfig.MyId);
+        toSend.AddRange(ArduinoConfig.configured ? new byte[] { 0x01 } : new byte[] { 0x00 });
 
         _serialPort.Write(toSend.ToArray(), 0, toSend.Count);
     }
