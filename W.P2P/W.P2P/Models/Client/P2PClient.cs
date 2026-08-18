@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using static W.P2P.Models.DataModels;
 
 namespace W.P2P.Models;
@@ -24,6 +25,7 @@ public class P2PClient
     
     public P2PClient()
     {
+        AppData.TerminalOutput.Add($"Connecting to Arduino...");
         _serialTransport.Connect();
         _serialTransport.OnFrameReceived += GotFrame;
         _serialTransport.StartReading();
@@ -308,14 +310,13 @@ public class P2PClient
             return true;
         }
         
-        AppData.TerminalOutput.Add($"Connecting to Arduino...");
         _serialTransport.ArduinoConfig = new ArduinoConfig();
         _serialTransport.ArduinoConfig.TargetId = contact.HardwareId;
         _serialTransport.ArduinoConfig.MyId = AppData.Config.HardwareId;
         ArduinoConfig = _serialTransport.ArduinoConfig;
         _serialTransport.SendConfig();
         
-        
+        Thread.Sleep(1500);  
         Handshake(contact);
         
         Connection = new Connection();
