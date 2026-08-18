@@ -310,7 +310,6 @@ public class P2PClient
         _serialTransport.ArduinoConfig = new ArduinoConfig();
         _serialTransport.ArduinoConfig.TargetId = contact.HardwareId;
         _serialTransport.ArduinoConfig.MyId = AppData.Config.HardwareId;
-        _serialTransport.ArduinoConfig.HandshakeId = Encoding.ASCII.GetBytes(_handshakeId);
         ArduinoConfig = _serialTransport.ArduinoConfig;
         _serialTransport.Connect();
         _serialTransport.OnFrameReceived += GotFrame;

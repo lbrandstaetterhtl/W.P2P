@@ -56,6 +56,5 @@ public class DataModels
     {
         public byte[] TargetId { get; set; }
         public byte[] MyId { get; set; }
-        public byte[] HandshakeId { get; set; }
     }
 }

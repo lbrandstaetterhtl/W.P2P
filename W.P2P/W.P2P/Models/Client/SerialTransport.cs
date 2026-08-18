@@ -190,7 +190,6 @@ public class SerialTransport
             toSend.Add(0xFF);
             toSend.AddRange(ArduinoConfig.TargetId);
             toSend.AddRange(ArduinoConfig.MyId);
-            toSend.AddRange(ArduinoConfig.HandshakeId);
             
             _serialPort.Write(toSend.ToArray(), 0, toSend.Count);
         }
