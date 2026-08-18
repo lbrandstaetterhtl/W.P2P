@@ -35,9 +35,6 @@ public class SerialTransport
 
                 AppData.TerminalOutput.Add(
                     $"Serial port opened: {_serialPort.PortName} at {_serialPort.BaudRate} baud.");
-
-                SendConfig();
-                AppData.TerminalOutput.Add("Configuration sent to Arduino.");
             }
             else
             {
@@ -181,7 +178,7 @@ public class SerialTransport
         }
     }
     
-    private void SendConfig()
+    public void SendConfig()
     {
         if (_serialPort.IsOpen)
         {

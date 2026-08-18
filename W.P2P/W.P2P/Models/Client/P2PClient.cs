@@ -24,7 +24,9 @@ public class P2PClient
     
     public P2PClient()
     {
-        
+        _serialTransport.Connect();
+        _serialTransport.OnFrameReceived += GotFrame;
+        _serialTransport.StartReading();
     }
     
     public ByteFrame Handshake(Contact contact)
@@ -311,9 +313,8 @@ public class P2PClient
         _serialTransport.ArduinoConfig.TargetId = contact.HardwareId;
         _serialTransport.ArduinoConfig.MyId = AppData.Config.HardwareId;
         ArduinoConfig = _serialTransport.ArduinoConfig;
-        _serialTransport.Connect();
-        _serialTransport.OnFrameReceived += GotFrame;
-        _serialTransport.StartReading();
+        _serialTransport.SendConfig();
+        
         
         Handshake(contact);
         
