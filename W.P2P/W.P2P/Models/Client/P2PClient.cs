@@ -17,7 +17,7 @@ public class P2PClient
     private readonly List<ByteFrame> _lastSentFrames = new();
 
     private readonly Queue<ByteFrame> _frameQueue = new();
-    private readonly SerialTransport _serialTransport = new("COM3", 9600);
+    private readonly SerialTransport _serialTransport = new("COM4", 9600);
     private readonly string _handshakeId = "00000000-0000-0000-0000-000000000000";
     public ArduinoConfig ArduinoConfig = new();
     
@@ -149,7 +149,7 @@ public class P2PClient
             byte[] myPublicKey = ecdh.ExportSubjectPublicKeyInfo();
 
             //DEBUG
-            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId, data: myPublicKey, id: Guid.NewGuid().ToString(), type: FrameType.HandshakeReply, connectionId: _handshakeId);
+            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: AppData.Config.Id, data: myPublicKey, id: Guid.NewGuid().ToString(), type: FrameType.HandshakeReply, connectionId: _handshakeId);
 
             AppData.TerminalOutput.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
 
@@ -195,7 +195,7 @@ public class P2PClient
             var decrypted = SecurityManager.Decrypt(frame.Data.ToArray(), Connection.SharedKey);
             var message = Encoding.UTF8.GetString(decrypted);
 
-            AppData.ReceivedMessages.Add($"Message from {Connection.TargetName}|{Connection.TargetId}: {message}");
+            AppData.ReceivedMessages.Add($"\"{Connection.TargetName}\" - {message}");
 
             var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id,
                 data: new byte[0], id: Connection.ConnectionId, type: FrameType.OkReply, connectionId: Connection.ConnectionId);
@@ -316,7 +316,7 @@ public class P2PClient
         _serialTransport.OnFrameReceived += GotFrame;
         _serialTransport.StartReading();
         
-        var handshake = Handshake(contact).Serialize().ToArray();
+        Handshake(contact);
         
         Connection = new Connection();
         Connection.TargetId = contact.Id;
@@ -388,8 +388,7 @@ public class P2PClient
 
             AppData.TerminalOutput.Add($"Sending Ok reply to {Connection.TargetName}|{Connection.TargetId}...\n");
             
-            //DEBUG
-            var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: stringFrame.TargetId, data: new byte[0], id: Guid.NewGuid().ToString(), type: FrameType.OkReply, connectionId: Connection.ConnectionId);
+            var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: new byte[0], id: Guid.NewGuid().ToString(), type: FrameType.OkReply, connectionId: Connection.ConnectionId);
 
             _frameQueue.Enqueue(reply);
             SendFrame();

@@ -38,8 +38,13 @@ public class Config
             hardwareId.Add((byte)Id[i]);
         }
         HardwareId = hardwareId.ToArray();
+        
+        //DEBUG TEST ID
+        var id = Guid.NewGuid().ToString();
+        var name = "flip";
 
         SaveIdInMap(Id, Name);
+        SaveIdInMap(id, name);
     }
 
     public void LoadConfig()
