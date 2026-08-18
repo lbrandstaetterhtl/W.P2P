@@ -25,7 +25,6 @@ public class SerialTransport
     public SerialTransport(string portName, int baudRate)
     {
         _serialPort = new SerialPort(portName, baudRate);
-        _serialPort.Open();
     }
 
     private static void Log(string message) =>
@@ -46,8 +45,6 @@ public class SerialTransport
             // Uno resettet beim Oeffnen (DTR/RTS-Puls). ~2s Bootloader abwarten,
             // sonst frisst der Bootloader die Config. Blockiert den Thread 2s.
             Thread.Sleep(2000);
-            _serialPort.DiscardInBuffer();
-            _serialPort.DiscardOutBuffer();
 
             Log($"Serial port opened: {_serialPort.PortName} at {_serialPort.BaudRate} baud.");
         }
