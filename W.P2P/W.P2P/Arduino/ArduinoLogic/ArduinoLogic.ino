@@ -30,12 +30,10 @@ bool setupRan = false;
 
 RF24 radio(9, 10);
 
-// Globale Buffer - Stack bleibt frei
-byte frameBuf[MAX_FRAME];      // Reassembly Funk -> PC
+byte frameBuf[MAX_FRAME];
 int  frameLen = 0;
-byte header[HEADER_LENGTH];    // PC -> Funk: Header-Teil
-byte data[255];                // PC -> Funk: Data-Teil
-// sendBuf entfernt - wir chunken direkt aus den Einzelteilen
+byte header[HEADER_LENGTH];
+byte data[255];
 
 // ---- Logging ----
 
@@ -103,9 +101,6 @@ void loop() {
 
 // ---- PC -> Funk ----
 
-// Baut einen "virtuellen" Frame aus den Einzelteilen (sync, header, dataLen,
-// data, crc, endSync) und schickt ihn direkt in 32-Byte-Chunks - ohne den
-// ganzen Frame nochmal in einen Buffer zu kopieren. Spart 260 Byte RAM.
 void sendFromParts(byte sync, const byte* hdr, byte dataLen, const byte* dat,
                    byte crc, byte endSync, int totalLength, bool broadcast) {
   radio.stopListening();
@@ -118,8 +113,6 @@ void sendFromParts(byte sync, const byte* hdr, byte dataLen, const byte* dat,
   int chunkNum = 0;
   bool allOk = true;
 
-  // Kleine Helfer-Lambda-Ersatz (C++ auf AVR mag keine Lambdas gut) -
-  // wir schreiben Bytes in chunk[] und flushen bei 32.
   #define WRITE_BYTE(b) do {                                     \
       chunk[chunkPos++] = (b);                                   \
       if (chunkPos == 32) {                                      \
@@ -141,7 +134,6 @@ void sendFromParts(byte sync, const byte* hdr, byte dataLen, const byte* dat,
   WRITE_BYTE(crc);
   WRITE_BYTE(endSync);
 
-  // Rest-Chunk (weniger als 32 Byte) rausschicken
   if (chunkPos > 0) {
     bool ok = radio.write(chunk, chunkPos, broadcast);
     if (!ok) allOk = false;
@@ -212,8 +204,6 @@ void handleSerial() {
     return;
   }
 
-  // FrameType direkt aus dem Header lesen (Sync ist Offset 0, Header beginnt bei 1)
-  // In den Header-Bytes ist der Type bei Index TYPE_OFFSET_IN_HEADER = 36
   byte frameType = header[TYPE_OFFSET_IN_HEADER];
   logHex("FrameType gelesen: ", frameType);
   bool broadcast = (frameType == FT_HANDSHAKE_INIT);
@@ -230,15 +220,17 @@ void receiveFromRadio() {
 
   uint8_t len = radio.getDynamicPayloadSize();
 
+  // DEBUG: alles loggen, auch Rauschen (Laenge 0 oder >32)
+  // Nach dem Test wieder rausnehmen und nur "sinnvolle" Pakete loggen.
+  char buf[64];
+  snprintf(buf, sizeof(buf), "DEBUG Funk rein: Pipe %d, Laenge %d", pipeNum, len);
+  logMsg(buf);
+
   if (len == 0 || len > 32) {
     byte dump[32];
     radio.read(dump, 32);
     return;
   }
-
-  char buf[64];
-  snprintf(buf, sizeof(buf), "Funk rein: Pipe %d, %d Byte", pipeNum, len);
-  logMsg(buf);
 
   if (frameLen + len > MAX_FRAME) {
     logMsg("-> Puffer-Ueberlauf, reset");
