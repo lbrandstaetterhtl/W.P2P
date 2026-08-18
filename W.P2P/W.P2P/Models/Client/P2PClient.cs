@@ -26,11 +26,10 @@ public class P2PClient
     
     public P2PClient()
     {
-        AppData.TerminalOutput.Add($"Connecting to Arduino...");
+        SafeLog.Add($"Connecting to Arduino...");
         _serialTransport.OnFrameReceived += GotFrame;
         _serialTransport.Connect();
         _serialTransport.StartReading();
-        // KEINE Broadcast-Config hier - Broadcast-Pipe ist im Arduino-setup() schon offen
     }
 
     
@@ -44,7 +43,7 @@ public class P2PClient
         var frame = BuildByteFrame(targetId: contact.Id, sourceId: AppData.Config.Id, data: myPublicKey,
             id: Guid.NewGuid().ToString(), type: FrameType.HandshakeInit, connectionId: _handshakeId);
         
-        AppData.TerminalOutput.Add($"Sending Handshake [id: {frame.Id}] request to {contact.Name}|{contact.Id}...\n");
+        SafeLog.Add($"Sending Handshake [id: {frame.Id}] request to {contact.Name}|{contact.Id}...\n");
         _frameQueue.Enqueue(frame);
         SendFrame();
         
@@ -55,9 +54,6 @@ public class P2PClient
     {
         try
         {
-            //DEBUG LINE
-            //throw new BrokenFrame("DEBUG");
-
             byte[] theirKey = frame.Data.ToArray();
             var stringFrame = frame.ToStringFrame();
 
@@ -72,13 +68,12 @@ public class P2PClient
             Handshakes.Remove(stringFrame.SourceId);
             ecdh.Dispose();
 
-            AppData.TerminalOutput.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
+            SafeLog.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
 
             var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: AppData.Config.Id, data: new byte[0],
                 id: Guid.NewGuid().ToString(), type: FrameType.OkReply, connectionId: _handshakeId);
 
-            AppData.TerminalOutput.Add(
-                $"Sending Ok reply [id: {reply.Id}] to {contact.Name}|{stringFrame.SourceId}...\n");
+            SafeLog.Add($"Sending Ok reply [id: {reply.Id}] to {contact.Name}|{stringFrame.SourceId}...\n");
 
             _frameQueue.Enqueue(reply);
             SendFrame();
@@ -87,7 +82,7 @@ public class P2PClient
         }
         catch (ContactNotFound c)
         {
-            AppData.TerminalOutput.Add($"ContactNotFound Exception at GotHandshakeReply: {c.Message}\n");
+            SafeLog.Add($"ContactNotFound Exception at GotHandshakeReply: {c.Message}\n");
             return null;
         }
         catch (BrokenFrame b)
@@ -95,7 +90,7 @@ public class P2PClient
             var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: AppData.Config.Id,
                 data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: _handshakeId);
 
-            AppData.TerminalOutput.Add($"BrokenFrame Exception at GotHandshakeReply: {b.Message}\n");
+            SafeLog.Add($"BrokenFrame Exception at GotHandshakeReply: {b.Message}\n");
 
             _frameQueue.Enqueue(reply);
             SendFrame();
@@ -104,12 +99,12 @@ public class P2PClient
         }
         catch (HandshakeNotFound h)
         {
-            AppData.TerminalOutput.Add($"HandshakeNotFound Exception at GotHandshakeReply: {h.Message}\n");
+            SafeLog.Add($"HandshakeNotFound Exception at GotHandshakeReply: {h.Message}\n");
             return null;
         }
         catch (Exception e)
         {
-            AppData.TerminalOutput.Add($"Unexpected Exception at GotHandshakeReply: \n {e.Message}\n");
+            SafeLog.Add($"Unexpected Exception at GotHandshakeReply: \n {e.Message}\n");
             return null;
         }
     }
@@ -123,23 +118,21 @@ public class P2PClient
             var contact = AppData.Config.IdMap.FirstOrDefault(c => c.Id == stringFrame.SourceId) ??
                           throw new ContactNotFound($"No contact found for {stringFrame.SourceId}.");
 
-            AppData.TerminalOutput.Add(
-                $"Error reply received from {contact.Name}|{stringFrame.SourceId}: {stringFrame.Data}\n");
-            AppData.TerminalOutput.Add($"Trying to send the frame [id: {stringFrame.Id}] again...\n");
+            SafeLog.Add($"Error reply received from {contact.Name}|{stringFrame.SourceId}: {stringFrame.Data}\n");
+            SafeLog.Add($"Trying to send the frame [id: {stringFrame.Id}] again...\n");
             
             SendFrame(true, stringFrame.Data);
         }
         catch (ContactNotFound c)
         {
-            AppData.TerminalOutput.Add($"ContactNotFound Exception at GotErrorReply: {c.Message}\n");
+            SafeLog.Add($"ContactNotFound Exception at GotErrorReply: {c.Message}\n");
         }
         catch (Exception e)
         {
-            AppData.TerminalOutput.Add($"Unexpected Exception at GotErrorReply: \n {e.Message}\n");
+            SafeLog.Add($"Unexpected Exception at GotErrorReply: \n {e.Message}\n");
         }
     }
     
-    //DEBUG sourceId impersonates target not own machine
     public ByteFrame GotHandshakeInitRequest(ByteFrame frame)
     {
         try
@@ -155,13 +148,10 @@ public class P2PClient
 
             byte[] myPublicKey = ecdh.ExportSubjectPublicKeyInfo();
 
-            //DEBUG
             var reply = BuildByteFrame(targetId: stringFrame.SourceId, sourceId: AppData.Config.Id, data: myPublicKey, id: Guid.NewGuid().ToString(), type: FrameType.HandshakeReply, connectionId: _handshakeId);
 
-            AppData.TerminalOutput.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
-
-            AppData.TerminalOutput.Add(
-                $"Sending Handshake reply [id: {reply.Id}] to {contact.Name}|{stringFrame.SourceId}...\n");
+            SafeLog.Add($"Handshake completed with {contact.Name}|{stringFrame.SourceId}.\n");
+            SafeLog.Add($"Sending Handshake reply [id: {reply.Id}] to {contact.Name}|{stringFrame.SourceId}...\n");
 
             ecdh.Dispose();
 
@@ -171,12 +161,12 @@ public class P2PClient
         }
         catch (ContactNotFound c)
         {
-            AppData.TerminalOutput.Add($"ContactNotFound Exception at GotHandshakeInitRequest: \n {c.Message}\n");
+            SafeLog.Add($"ContactNotFound Exception at GotHandshakeInitRequest: \n {c.Message}\n");
             return null;
         }
         catch (BrokenFrame b)
         {
-            AppData.TerminalOutput.Add($"BrokenFrame Exception at GotHandshakeInitRequest: \n {b.Message}\n");
+            SafeLog.Add($"BrokenFrame Exception at GotHandshakeInitRequest: \n {b.Message}\n");
 
             var reply = BuildByteFrame(targetId: frame.ToStringFrame().SourceId, sourceId: AppData.Config.Id,
                 data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: _handshakeId);
@@ -186,7 +176,7 @@ public class P2PClient
         }
         catch (Exception e)
         {
-            AppData.TerminalOutput.Add($"Unexpected Exception at GotHandshakeInitRequest: \n {e.Message}\n");
+            SafeLog.Add($"Unexpected Exception at GotHandshakeInitRequest: \n {e.Message}\n");
             return null;
         }
     }
@@ -195,14 +185,11 @@ public class P2PClient
     {
         try
         {
-            //DEBUG LINE
-            //throw new Exception("DEBUG");
-
             stringFrame = frame.ToStringFrame();
             var decrypted = SecurityManager.Decrypt(frame.Data.ToArray(), Connection.SharedKey);
             var message = Encoding.UTF8.GetString(decrypted);
 
-            AppData.ReceivedMessages.Add($"\"{Connection.TargetName}\" - {message}");
+            AppData.ReceivedMessages.Add($"{Connection.TargetName}: {message}");
 
             var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id,
                 data: new byte[0], id: Connection.ConnectionId, type: FrameType.OkReply, connectionId: Connection.ConnectionId);
@@ -213,13 +200,13 @@ public class P2PClient
         }
         catch (ContactNotFound c)
         {
-            AppData.TerminalOutput.Add($"ContactNotFound Exception: {c.Message}\n");
+            SafeLog.Add($"ContactNotFound Exception: {c.Message}\n");
             stringFrame = null;
             return null;
         }
         catch (BrokenFrame b)
         {
-            AppData.TerminalOutput.Add($"BrokenFrame Exception: {b.Message}\n");
+            SafeLog.Add($"BrokenFrame Exception: {b.Message}\n");
             var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id,
                 data: frame.Id.ToArray(), id: Connection.ConnectionId, type: FrameType.ErrorReply, connectionId: Connection.ConnectionId);
             stringFrame = null;
@@ -229,13 +216,12 @@ public class P2PClient
         }
         catch (Exception e)
         {
-            AppData.TerminalOutput.Add($"Unexpected Exception: {e.Message}\n");
+            SafeLog.Add($"Unexpected Exception: {e.Message}\n");
             stringFrame = null;
             return null;
         }
     }
 
-    //TODO:REAL SEND LOGIC VIA USB SERIAL PORT TO ARDUINO
     public void SendFrame(bool errorReply = false, string id = "")
     {
         var frame = new ByteFrame();
@@ -250,23 +236,21 @@ public class P2PClient
         }
         
         var stringFrame = frame.ToStringFrame();
-        AppData.TerminalOutput.Add($"Sending frame [id: {frame.Id}] to {stringFrame.TargetId}...\n");
+        SafeLog.Add($"Sending frame [id: {frame.Id}] to {stringFrame.TargetId}...\n");
         
-        //DEBUG
         var serialized = frame.Serialize();
-        AppData.TerminalOutput.Add($"DEBUG: Serialized frame: {BitConverter.ToString(serialized.ToArray())}\n");
+        SafeLog.Add($"DEBUG: Serialized frame: {BitConverter.ToString(serialized.ToArray())}\n");
         
         _serialTransport.SendFrame(serialized.ToArray());
         
         var deserialized = ByteFrame.Deserialize(serialized);
-        AppData.TerminalOutput.Add($"DEBUG: Deserialized frame: {BitConverter.ToString(deserialized.Serialize().ToArray())}\n");
+        SafeLog.Add($"DEBUG: Deserialized frame: {BitConverter.ToString(deserialized.Serialize().ToArray())}\n");
         
-        
-        AppData.TerminalOutput.Add($"DEBUG: Frame id: {stringFrame.Id}\n");
-        AppData.TerminalOutput.Add($"DEBUG: Frame type: {stringFrame.Type}\n");
-        AppData.TerminalOutput.Add($"DEBUG: Frame targetId: {stringFrame.TargetId}\n");
-        AppData.TerminalOutput.Add($"DEBUG: Frame sourceId: {stringFrame.SourceId}\n");
-        AppData.TerminalOutput.Add($"DEBUG: Frame data: {stringFrame.Data}\n");
+        SafeLog.Add($"DEBUG: Frame id: {stringFrame.Id}\n");
+        SafeLog.Add($"DEBUG: Frame type: {stringFrame.Type}\n");
+        SafeLog.Add($"DEBUG: Frame targetId: {stringFrame.TargetId}\n");
+        SafeLog.Add($"DEBUG: Frame sourceId: {stringFrame.SourceId}\n");
+        SafeLog.Add($"DEBUG: Frame data: {stringFrame.Data}\n");
     }
     
     public void SendMessage(byte[] data)
@@ -274,14 +258,14 @@ public class P2PClient
         if (!Connection.IsConnected)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            AppData.TerminalOutput.Add("Error: No connection established. Please connect to a contact first.\n");
+            SafeLog.Add("Error: No connection established. Please connect to a contact first.\n");
             Console.ResetColor();
             return;
         }
         
         var encrypted = SecurityManager.Encrypt(data, Connection.SharedKey);
         var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: encrypted, id: Connection.ConnectionId, type: FrameType.Data, connectionId: Connection.ConnectionId);
-        AppData.TerminalOutput.Add($"Message sent to {Connection.TargetName}|{Connection.TargetId}.");
+        SafeLog.Add($"Message sent to {Connection.TargetName}|{Connection.TargetId}.");
         _frameQueue.Enqueue(frame);
         SendFrame();
     }
@@ -304,12 +288,11 @@ public class P2PClient
         return frame;
     }
 
-    //DEBUG SIMULATES
     public bool Connect(Contact contact)
     {
         if (Connection.IsConnected)
         {
-            AppData.TerminalOutput.Add($"Already connected to {Connection.TargetName}|{Connection.TargetId}. Disconnect first.\n");
+            SafeLog.Add($"Already connected to {Connection.TargetName}|{Connection.TargetId}. Disconnect first.\n");
             return true;
         }
     
@@ -331,12 +314,11 @@ public class P2PClient
         return true;
     }
 
-    //DEBUG SIMULATES
     public bool Disconnect()
     {
         try
         {
-            AppData.TerminalOutput.Add($"Disconnecting with {Connection.TargetName}|{Connection.TargetId}...\n");
+            SafeLog.Add($"Disconnecting with {Connection.TargetName}|{Connection.TargetId}...\n");
 
             var frame = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: new byte[0],
                 id: Connection.ConnectionId, type: FrameType.Disconnect, connectionId: Connection.ConnectionId);
@@ -347,17 +329,17 @@ public class P2PClient
         }
         catch (ContactNotFound c)
         {
-            AppData.TerminalOutput.Add($"ContactNotFound Exception at Disconnect: {c.Message}\n");
+            SafeLog.Add($"ContactNotFound Exception at Disconnect: {c.Message}\n");
             return false;
         }
         catch (BrokenFrame b)
         {
-            AppData.TerminalOutput.Add($"BrokenFrame Exception at Disconnect: {b.Message}\n");
+            SafeLog.Add($"BrokenFrame Exception at Disconnect: {b.Message}\n");
             return false;
         }
         catch (Exception e)
         {
-            AppData.TerminalOutput.Add($"Unexpected Exception at Disconnect: {e.Message}\n");
+            SafeLog.Add($"Unexpected Exception at Disconnect: {e.Message}\n");
             return false;
         }
     }
@@ -365,24 +347,17 @@ public class P2PClient
     public void GotOkReply(ByteFrame frame)
     {
         var stringFrame = frame.ToStringFrame();
-        
-        AppData.TerminalOutput.Add($"Got Ok Reply from {Connection.TargetName}|{Connection.TargetId} for frame {stringFrame.Id}\n");
+        SafeLog.Add($"Got Ok Reply from {Connection.TargetName}|{Connection.TargetId} for frame {stringFrame.Id}\n");
     }
 
-    //DEBUG impersonates target not own machine
     public ByteFrame GotDisconnectRequest(ByteFrame frame)
     {
         try
         {
-            //DEBUG LINE
-            //throw new BrokenFrame("DEBUG");
-            
             var stringFrame = frame.ToStringFrame();
 
-            AppData.TerminalOutput.Add(
-                $"Got Disconnect Request from {Connection.TargetName}|{Connection.TargetId} for frame {stringFrame.Id}\n");
-
-            AppData.TerminalOutput.Add($"Disconnecting with {Connection.TargetName}|{Connection.TargetId}...\n");
+            SafeLog.Add($"Got Disconnect Request from {Connection.TargetName}|{Connection.TargetId} for frame {stringFrame.Id}\n");
+            SafeLog.Add($"Disconnecting with {Connection.TargetName}|{Connection.TargetId}...\n");
 
             Connection.TargetId = "";
             Connection.ConnectionId = "";
@@ -390,7 +365,7 @@ public class P2PClient
             Connection.TargetName = "";
             Connection.SharedKey = [];
 
-            AppData.TerminalOutput.Add($"Sending Ok reply to {Connection.TargetName}|{Connection.TargetId}...\n");
+            SafeLog.Add($"Sending Ok reply to {Connection.TargetName}|{Connection.TargetId}...\n");
             
             var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: new byte[0], id: Guid.NewGuid().ToString(), type: FrameType.OkReply, connectionId: Connection.ConnectionId);
 
@@ -400,12 +375,12 @@ public class P2PClient
         }
         catch (ContactNotFound c)
         {
-            AppData.TerminalOutput.Add($"Error: {c.Message}\n");
+            SafeLog.Add($"Error: {c.Message}\n");
             return null;
         }
         catch (BrokenFrame b)
         {
-            AppData.TerminalOutput.Add($"BrokenFrame Exception: {b.Message}\n");
+            SafeLog.Add($"BrokenFrame Exception: {b.Message}\n");
             
             var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id,
                 data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: Connection.ConnectionId);
@@ -416,25 +391,20 @@ public class P2PClient
         }
     }
     
-    //DEBUG Doesn't call got methode
     public void GotFrame(byte[] data)
     {
         var frame = ByteFrame.Deserialize(data.ToList());
-        //var reply = new ByteFrame();
         
         switch (frame.Type)
         {
             case FrameType.HandshakeInit:
                 GotHandshakeInitRequest(frame);
-                //AppData.TerminalOutput.Add($"DEBUG HandshakeInit: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             case FrameType.HandshakeReply:
                 GotHandshakeReply(frame);
-                //AppData.TerminalOutput.Add($"DEBUG HandshakeReply: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             case FrameType.Data:
                 GotMessage(frame, out _);
-                //AppData.TerminalOutput.Add($"DEBUG Message: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             case FrameType.OkReply:
                 GotOkReply(frame);
@@ -444,10 +414,9 @@ public class P2PClient
                 break;
             case FrameType.Disconnect:
                 GotDisconnectRequest(frame);
-                //AppData.TerminalOutput.Add($"DEBUG Disconnect: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             default:
-                AppData.TerminalOutput.Add($"Error: Unknown frame type {frame.Type} received.\n");
+                SafeLog.Add($"Error: Unknown frame type {frame.Type} received.\n");
                 break;
         }
     }

@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO.Ports;
 using System.Text;
 using System.Threading;
-using Avalonia.Threading;
 
 namespace W.P2P.Models;
 
@@ -27,30 +26,23 @@ public class SerialTransport
         _serialPort = new SerialPort(portName, baudRate);
     }
 
-    private static void Log(string message) =>
-        Dispatcher.UIThread.Post(() => AppData.TerminalOutput.Add(message));
-
     public void Connect()
     {
         try
         {
             if (_serialPort.IsOpen)
             {
-                Log($"Serial port {_serialPort.PortName} is already open.");
+                DataModels.SafeLog.Add($"Serial port {_serialPort.PortName} is already open.");
                 return;
             }
             
             _serialPort.Open();
-
-            // Uno resettet beim Oeffnen (DTR/RTS-Puls). ~2s Bootloader abwarten,
-            // sonst frisst der Bootloader die Config. Blockiert den Thread 2s.
             Thread.Sleep(2000);
-
-            Log($"Serial port opened: {_serialPort.PortName} at {_serialPort.BaudRate} baud.");
+            DataModels.SafeLog.Add($"Serial port opened: {_serialPort.PortName} at {_serialPort.BaudRate} baud.");
         }
         catch (Exception ex)
         {
-            Log($"Error opening serial port: {ex.Message}");
+            DataModels.SafeLog.Add($"Error opening serial port: {ex.Message}");
         }
     }
 
@@ -61,20 +53,19 @@ public class SerialTransport
             if (_serialPort.IsOpen)
             {
                 _serialPort.Write(frame, 0, frame.Length);
-                Log($"Sent frame to UNO: {frame.Length} bytes");
+                DataModels.SafeLog.Add($"Sent frame to UNO: {frame.Length} bytes");
             }
             else
             {
-                Log($"Serial port {_serialPort.PortName} is not open. Cannot send frame.");
+                DataModels.SafeLog.Add($"Serial port {_serialPort.PortName} is not open. Cannot send frame.");
             }
         }
         catch (Exception ex)
         {
-            Log($"Error sending frame: {ex.Message}");
+            DataModels.SafeLog.Add($"Error sending frame: {ex.Message}");
         }
     }
 
-    // Sync wurde bereits vom ReadThread konsumiert -> hier voranstellen
     private byte[] ReceiveFrameAfterSync()
     {
         List<byte> frame = new() { SYNC_BYTE };
@@ -119,7 +110,7 @@ public class SerialTransport
                 }
                 else if (idle.ElapsedMilliseconds > IdleTimeoutMs)
                 {
-                    return [];   // Timeout -> leer, Aufrufer behandelt das
+                    return [];
                 }
                 else
                 {
@@ -131,7 +122,7 @@ public class SerialTransport
         }
         catch (Exception ex)
         {
-            Log($"Error in reading frame: {ex.Message}");
+            DataModels.SafeLog.Add($"Error in reading frame: {ex.Message}");
             return [];
         }
     }
@@ -152,7 +143,7 @@ public class SerialTransport
 
     private void ReadThread()
     {
-        Log("ReadThread is now running!");
+        DataModels.SafeLog.Add("ReadThread is now running!");
 
         try
         {
@@ -173,7 +164,6 @@ public class SerialTransport
                     {
                         ReadLogMessage();
                     }
-                    // alles andere: ignorieren, naechstes Byte pruefen (Resync)
                 }
 
                 Thread.Sleep(20);
@@ -181,7 +171,7 @@ public class SerialTransport
         }
         catch (Exception ex)
         {
-            Log($"Error in reading thread: {ex.Message}");
+            DataModels.SafeLog.Add($"Error in reading thread: {ex.Message}");
         }
     }
 
@@ -193,7 +183,7 @@ public class SerialTransport
 
         if (len == 0)
         {
-            Log("[UNO] ");
+            DataModels.SafeLog.Add("[UNO] ");
             return;
         }
 
@@ -201,7 +191,7 @@ public class SerialTransport
         if (msg.Length < len) return;
 
         var text = Encoding.ASCII.GetString(msg);
-        Log($"[UNO] {text}");
+        DataModels.SafeLog.Add($"[UNO] {text}");
     }
 
     public void SendConfig()
@@ -210,8 +200,8 @@ public class SerialTransport
 
         List<byte> toSend = new();
         toSend.Add(0xFF);
-        toSend.AddRange(ArduinoConfig.TargetId);   // 5 Byte
-        toSend.AddRange(ArduinoConfig.MyId);       // 5 Byte
+        toSend.AddRange(ArduinoConfig.TargetId);
+        toSend.AddRange(ArduinoConfig.MyId);
 
         _serialPort.Write(toSend.ToArray(), 0, toSend.Count);
     }

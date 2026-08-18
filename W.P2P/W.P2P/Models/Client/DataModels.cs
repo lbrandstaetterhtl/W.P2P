@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using Avalonia.Threading;
 
 namespace W.P2P.Models;
 
@@ -56,5 +57,29 @@ public class DataModels
     {
         public byte[] TargetId { get; set; }
         public byte[] MyId { get; set; }
+    }
+    
+    public static class SafeLog
+    {
+        private const int MaxLines = 500;
+
+        public static void Add(string message)
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                AppendInternal(message);
+            }
+            else
+            {
+                Dispatcher.UIThread.Invoke(() => AppendInternal(message));
+            }
+        }
+
+        private static void AppendInternal(string message)
+        {
+            AppData.TerminalOutput.Add(message);
+            if (AppData.TerminalOutput.Count > MaxLines)
+                AppData.TerminalOutput.RemoveAt(0);
+        }
     }
 }
