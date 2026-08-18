@@ -421,16 +421,16 @@ public class P2PClient
         switch (frame.Type)
         {
             case FrameType.HandshakeInit:
-                //reply = GotHandshakeInitRequest(frame);
-                AppData.TerminalOutput.Add($"DEBUG HandshakeInit: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
+                GotHandshakeInitRequest(frame);
+                //AppData.TerminalOutput.Add($"DEBUG HandshakeInit: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             case FrameType.HandshakeReply:
-                //reply = GotHandshakeReply(frame);
-                AppData.TerminalOutput.Add($"DEBUG HandshakeReply: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
+                GotHandshakeReply(frame);
+                //AppData.TerminalOutput.Add($"DEBUG HandshakeReply: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             case FrameType.Data:
-                //reply = GotMessage(frame, out _);
-                AppData.TerminalOutput.Add($"DEBUG Message: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
+                GotMessage(frame, out _);
+                //AppData.TerminalOutput.Add($"DEBUG Message: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             case FrameType.OkReply:
                 GotOkReply(frame);
@@ -439,8 +439,8 @@ public class P2PClient
                 GotErrorReply(frame);
                 break;
             case FrameType.Disconnect:
-                //reply = GotDisconnectRequest(frame);
-                AppData.TerminalOutput.Add($"DEBUG Disconnect: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
+                GotDisconnectRequest(frame);
+                //AppData.TerminalOutput.Add($"DEBUG Disconnect: type: {frame.Type}, targetId: {Encoding.UTF8.GetString(frame.TargetId.ToArray())}, sourceId: {Encoding.UTF8.GetString(frame.SourceId.ToArray())}");
                 break;
             default:
                 AppData.TerminalOutput.Add($"Error: Unknown frame type {frame.Type} received.\n");

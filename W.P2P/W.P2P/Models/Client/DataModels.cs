@@ -34,7 +34,7 @@ public class DataModels
         public void SetHardwareId()
         {
             List<byte> hardwareId = new();
-            for (int i = 0; i <= 5; i++)
+            for (int i = 0; i < 5; i++)
             {
                 hardwareId.Add((byte)Id[i]);
             }

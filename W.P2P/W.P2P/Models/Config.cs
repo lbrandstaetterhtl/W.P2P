@@ -33,18 +33,18 @@ public class Config
         Name = Environment.MachineName;
 
         List<byte> hardwareId = new();
-        for (int i = 0; i <= 5; i++)
+        for (int i = 0; i < 5; i++)
         {
             hardwareId.Add((byte)Id[i]);
         }
         HardwareId = hardwareId.ToArray();
         
         //DEBUG TEST ID
-        var id = Guid.NewGuid().ToString();
-        var name = "flip";
+        //var id = Guid.NewGuid().ToString();
+        //var name = "flip";
 
-        SaveIdInMap(Id, Name);
-        SaveIdInMap(id, name);
+        //SaveIdInMap(Id, Name);
+        //SaveIdInMap(id, name);
     }
 
     public void LoadConfig()
@@ -67,6 +67,7 @@ public class Config
 
             Id = config!.Id;
             Name = config.Name;
+            HardwareId = config.HardwareId;
             
             IdMap.Clear();
             foreach (var contact in config.IdMap)

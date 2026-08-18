@@ -28,9 +28,16 @@ public class SerialTransport
             if (!_serialPort.IsOpen)
             {
                 _serialPort.Open();
+
+                Thread.Sleep(2000);
+                _serialPort.DiscardInBuffer();
+                _serialPort.DiscardOutBuffer();
+
                 AppData.TerminalOutput.Add(
                     $"Serial port opened: {_serialPort.PortName} at {_serialPort.BaudRate} baud.");
+
                 SendConfig();
+                AppData.TerminalOutput.Add("Configuration sent to Arduino.");
             }
             else
             {
@@ -82,7 +89,6 @@ public class SerialTransport
     
         var header = ReadBytes(HEADER_SIZE);
         frame.AddRange(header);
-
         var lengthArray = ReadBytes(1);
         var dataLength = lengthArray[0];
         frame.AddRange(lengthArray);
