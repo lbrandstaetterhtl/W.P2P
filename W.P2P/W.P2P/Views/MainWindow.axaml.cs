@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using W.P2P.Models;
 using W.P2P.ViewModels;
 
@@ -21,7 +22,17 @@ public partial class MainWindow : Window
         
         _vm.TerminalOutput.CollectionChanged += (sender, args) =>
         {
-            TerminalScroller.ScrollToEnd();
+            var offset = TerminalScroller.Offset;
+            var extent = TerminalScroller.Extent;
+            var viewport = TerminalScroller.Viewport;
+    
+            bool isAtBottom = offset.Y + viewport.Height >= extent.Height - 10;
+    
+            if (isAtBottom)
+            {
+                Dispatcher.UIThread.Post(() => TerminalScroller.ScrollToEnd(), 
+                    DispatcherPriority.Background);
+            }
         };
     }
 
