@@ -387,7 +387,10 @@ public class P2PClient
             _serialTransport.ArduinoConfig = new ArduinoConfig();
             _serialTransport.SendConfig();
         
-            Connection = new Connection();
+            Connection.TargetId = "";
+            Connection.ConnectionId = "";
+            Connection.IsConnected = false;
+            Connection.SharedKey = [];
         }
         catch (Exception e)
         {
