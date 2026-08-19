@@ -277,6 +277,11 @@ public class P2PClient
     
     public ByteFrame BuildByteFrame(string targetId, string sourceId, byte[] data, string id, FrameType type, string connectionId)
     {
+        if (targetId == null || sourceId == null || id == null || connectionId == null)
+            throw new BrokenFrame("BuildByteFrame: null argument");
+        
+        data ??= [];
+        
         var frame = new ByteFrame();
         frame.Id = new List<byte>(Encoding.ASCII.GetBytes(id));
             
@@ -359,35 +364,34 @@ public class P2PClient
         {
             var stringFrame = frame.ToStringFrame();
 
+            if (!Connection.IsConnected)
+            {
+                SafeLog.Add($"Ignoring disconnect - not connected.\n");
+                return;
+            }
+
             SafeLog.Add($"Got Disconnect Request from {Connection.TargetName}|{Connection.TargetId} for frame {stringFrame.Id}\n");
-            SafeLog.Add($"Disconnecting with {Connection.TargetName}|{Connection.TargetId}...\n");
-
-            Connection.TargetId = "";
-            Connection.ConnectionId = "";
-            Connection.IsConnected = false;
-            Connection.TargetName = "";
-            Connection.SharedKey = [];
-
             SafeLog.Add($"Sending Ok reply to {Connection.TargetName}|{Connection.TargetId}...\n");
-            
-            var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id, data: new byte[0], id: Guid.NewGuid().ToString(), type: FrameType.OkReply, connectionId: Connection.ConnectionId);
+        
+            var reply = BuildByteFrame(
+                targetId: Connection.TargetId, 
+                sourceId: AppData.Config.Id, 
+                data: new byte[0], 
+                id: Guid.NewGuid().ToString(), 
+                type: FrameType.OkReply, 
+                connectionId: Connection.ConnectionId);
 
             _frameQueue.Enqueue(reply);
             SendFrame();
+
+            _serialTransport.ArduinoConfig = new ArduinoConfig();
+            _serialTransport.SendConfig();
+        
+            Connection = new Connection();
         }
-        catch (ContactNotFound c)
+        catch (Exception e)
         {
-            SafeLog.Add($"Error: {c.Message}\n");
-        }
-        catch (BrokenFrame b)
-        {
-            SafeLog.Add($"BrokenFrame Exception: {b.Message}\n");
-            
-            var reply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id,
-                data: frame.Id.ToArray(), id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: Connection.ConnectionId);
-            
-            _frameQueue.Enqueue(reply);
-            SendFrame();
+            SafeLog.Add($"Exception at GotDisconnectRequest: {e.Message}\n");
         }
     }
     
