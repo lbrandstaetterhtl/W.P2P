@@ -19,4 +19,16 @@
                 <Setter Property="Foreground" Value="White"/>
                 <Setter Property="FontSize" Value="14"/>
         </Style>
+        
+        <Style Selector="Grid.Output">
+                <Setter Property="MaxWidth" Value="700"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                <Setter Property="Margin" Value="10"/>
+        </Style>
+        
+        <Style Selector="ScrollViewer.Output">
+                <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+                <Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+                <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
 </Styles>
