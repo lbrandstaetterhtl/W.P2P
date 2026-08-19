@@ -304,7 +304,7 @@ public class P2PClient
         _serialTransport.ArduinoConfig = new ArduinoConfig();
         _serialTransport.ArduinoConfig.TargetId = contact.HardwareId;
         _serialTransport.ArduinoConfig.MyId = AppData.Config.HardwareId;
-        _serialTransport.ArduinoConfig.configured = false;
+        _serialTransport.ArduinoConfig.configured = true;
         ArduinoConfig = _serialTransport.ArduinoConfig;
         _serialTransport.SendConfig();
     
@@ -393,31 +393,47 @@ public class P2PClient
     
     public void GotFrame(byte[] data)
     {
-        var frame = ByteFrame.Deserialize(data.ToList());
-        
-        switch (frame.Type)
+        try
         {
-            case FrameType.HandshakeInit:
-                GotHandshakeInitRequest(frame);
-                break;
-            case FrameType.HandshakeReply:
-                GotHandshakeReply(frame);
-                break;
-            case FrameType.Data:
-                GotMessage(frame, out _);
-                break;
-            case FrameType.OkReply:
-                GotOkReply(frame);
-                break;
-            case FrameType.ErrorReply:
-                GotErrorReply(frame);
-                break;
-            case FrameType.Disconnect:
-                GotDisconnectRequest(frame);
-                break;
-            default:
-                SafeLog.Add($"Error: Unknown frame type {frame.Type} received.\n");
-                break;
+            var frame = ByteFrame.Deserialize(data.ToList());
+
+            switch (frame.Type)
+            {
+                case FrameType.HandshakeInit:
+                    GotHandshakeInitRequest(frame);
+                    break;
+                case FrameType.HandshakeReply:
+                    GotHandshakeReply(frame);
+                    break;
+                case FrameType.Data:
+                    GotMessage(frame, out _);
+                    break;
+                case FrameType.OkReply:
+                    GotOkReply(frame);
+                    break;
+                case FrameType.ErrorReply:
+                    GotErrorReply(frame);
+                    break;
+                case FrameType.Disconnect:
+                    GotDisconnectRequest(frame);
+                    break;
+                default:
+                    SafeLog.Add($"Error: Unknown frame type {frame.Type} received.\n");
+                    break;
+            }
+        }
+        catch (BrokenFrame b)
+        {
+            byte[] frameId = new Byte[36];
+            for (int i = 37; i < i + 36; i++)
+            {
+                frameId[i - 37] = data[i];
+            }
+            
+            var errorReply = BuildByteFrame(targetId: Connection.TargetId, sourceId: AppData.Config.Id,
+                data: frameId, id: Guid.NewGuid().ToString(), type: FrameType.ErrorReply, connectionId: Connection.ConnectionId);
+            _frameQueue.Enqueue(errorReply);
+            SendFrame();
         }
     }
 }
