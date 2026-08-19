@@ -18,6 +18,11 @@ public partial class MainWindow : Window
         keyBinding.Gesture = new KeyGesture(Key.Enter);
         keyBinding.Command = _vm.SendMessageCommand;
         ChatInput.KeyBindings.Add(keyBinding);
+        
+        _vm.TerminalOutput.CollectionChanged += (sender, args) =>
+        {
+            TerminalScroller.ScrollToEnd();
+        };
     }
 
     public void ConnectClick(object sender, RoutedEventArgs e)

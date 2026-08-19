@@ -12,6 +12,4 @@ public class AppData : ObservableObject
 
     public static ObservableCollection<string> SentMessages = new();
     public static ObservableCollection<string> ReceivedMessages = new();
-    
-    
 }

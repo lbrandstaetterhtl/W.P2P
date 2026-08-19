@@ -392,9 +392,9 @@ void desirializeConfig() {
   configured = (configuredByte == 0x001);
 
   if (configured) {
-    radio.openReadingPipe(2, myId);
-    radio.setAutoAck(2, true);
-    logMsgF(F("Private connected"));
+  radio.openReadingPipe(2, myId);
+  radio.setAutoAck(2, true);
+  logMsgF(F("Private connected"));
   }
   else
   {

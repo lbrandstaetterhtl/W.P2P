@@ -18,7 +18,7 @@ public class P2PClient
     private readonly List<ByteFrame> _lastSentFrames = new();
 
     private readonly Queue<ByteFrame> _frameQueue = new();
-    private readonly SerialTransport _serialTransport = new("COM3", 9600);
+    private readonly SerialTransport _serialTransport = new("COM4", 9600);
     private readonly string _handshakeId = "00000000-0000-0000-0000-000000000000";
     public ArduinoConfig ArduinoConfig = new();
     
@@ -240,7 +240,7 @@ public class P2PClient
         }
         
         var stringFrame = frame.ToStringFrame();
-        SafeLog.Add($"Sending frame [id: {frame.Id}] to {stringFrame.TargetId}...\n");
+        SafeLog.Add($"Sending frame [id: {stringFrame.Id}] to {stringFrame.TargetId}...\n");
         
         var serialized = frame.Serialize();
         SafeLog.Add($"DEBUG: Serialized frame: {BitConverter.ToString(serialized.ToArray())}\n");
@@ -250,6 +250,7 @@ public class P2PClient
         var deserialized = ByteFrame.Deserialize(serialized);
         SafeLog.Add($"DEBUG: Deserialized frame: {BitConverter.ToString(deserialized.Serialize().ToArray())}\n");
         
+        SafeLog.Add($"DEBUG: Frame connectionId: {stringFrame.ConnectionId}");
         SafeLog.Add($"DEBUG: Frame id: {stringFrame.Id}\n");
         SafeLog.Add($"DEBUG: Frame type: {stringFrame.Type}\n");
         SafeLog.Add($"DEBUG: Frame targetId: {stringFrame.TargetId}\n");

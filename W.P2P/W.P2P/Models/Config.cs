@@ -31,13 +31,13 @@ public class Config
     {
         Id = Guid.NewGuid().ToString();
         Name = Environment.MachineName;
-
-        List<byte> hardwareId = new();
-        for (int i = 0; i < 5; i++)
-        {
-            hardwareId.Add((byte)Id[i]);
-        }
-        HardwareId = hardwareId.ToArray();
+        
+        HardwareId = new byte[5];
+        HardwareId[0] = (byte)Id[0];
+        HardwareId[1] = 0xF0;
+        HardwareId[2] = 0xF0;
+        HardwareId[3] = 0xE8;
+        HardwareId[4] = 0xC5;
         
         //DEBUG TEST ID
         //var id = Guid.NewGuid().ToString();

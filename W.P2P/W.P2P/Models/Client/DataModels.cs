@@ -8,6 +8,7 @@ public class DataModels
 {
     public class StringFrame
     {
+        public string ConnectionId { get; set; }
         public string TargetId { get; set; }
         public string SourceId { get; set; }
         public string Data { get; set; }
@@ -34,13 +35,12 @@ public class DataModels
         
         public void SetHardwareId()
         {
-            List<byte> hardwareId = new();
-            for (int i = 0; i < 5; i++)
-            {
-                hardwareId.Add((byte)Id[i]);
-            }
-            
-            HardwareId = hardwareId.ToArray();
+            HardwareId = new byte[5];
+            HardwareId[0] = (byte)Id[0];
+            HardwareId[1] = 0xF0;
+            HardwareId[2] = 0xF0;
+            HardwareId[3] = 0xE8;
+            HardwareId[4] = 0xC5;
         }
     }
     
